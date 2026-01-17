@@ -20,6 +20,7 @@ model Siswa {
   NIPD           Int
   nama_siswa     String
   alamat         String
+  gender         String
   tanggal_lahir  DateTime
   nomor_telepon  String
   orangtua_id    Int
@@ -50,8 +51,8 @@ model OrangTua {
 }
 
 model RFID {
-  id         BigInt   @id @default(autoincrement())
-  uid_rfid   BigInt   @unique
+  id         Int   @id @default(autoincrement())
+  uid_rfid   Int   @unique
   siswa_id   String   @db.Char(36)
   is_active  Boolean  @default(true)
 
@@ -64,12 +65,12 @@ model RFID {
 }
 
 model AbsensiSiswa {
-  id         BigInt   @id @default(autoincrement())
+  id         Int   @id @default(autoincrement())
   siswa_id   String   @db.Char(36)
   tanggal    DateTime
-  tap_in     BigInt?
-  tap_out    BigInt?
-  rfid_id    BigInt?
+  tap_in     Int?
+  tap_out    Int?
+  rfid_id    Int?
 
   siswa      Siswa @relation(fields: [siswa_id], references: [id])
   rfid       RFID? @relation(fields: [rfid_id], references: [id])
@@ -83,10 +84,10 @@ model AbsensiSiswa {
 }
 
 model DetailAbsensiSiswa {
-  id          BigInt        @id @default(autoincrement())
-  absensi_id  BigInt
-  jadwal_id   BigInt
-  guru_id     BigInt
+  id          Int        @id @default(autoincrement())
+  absensi_id  Int
+  jadwal_id   Int
+  guru_id     Int
   status      StatusAbsensi
   jam_absen   DateTime
   keterangan  String?
@@ -104,7 +105,7 @@ model DetailAbsensiSiswa {
 }
 
 model Guru {
-  id             BigInt   @id @default(autoincrement())
+  id             Int   @id @default(autoincrement())
   NIP            Int      @unique
   nama           String
   nomor_telepon  String
@@ -120,11 +121,11 @@ model Guru {
 }
 
 model Jadwal {
-  id             BigInt   @id @default(autoincrement())
+  id             Int   @id @default(autoincrement())
   tanggal_jadwal DateTime
   kelas_id       Int
-  mapel_id       BigInt
-  guru_id        BigInt
+  mapel_id       Int
+  guru_id        Int
   jam_mulai      DateTime
   jam_selesai    DateTime
 
@@ -142,7 +143,7 @@ model Jadwal {
 }
 
 model MataPelajaran {
-  id         BigInt   @id @default(autoincrement())
+  id         Int   @id @default(autoincrement())
   nama_mapel String
 
   jadwal     Jadwal[]
@@ -155,7 +156,7 @@ model MataPelajaran {
 model Kelas {
   id              Int      @id @default(autoincrement())
   kelas           String
-  jurusan_id      BigInt
+  jurusan_id      Int
   tahun_ajaran_id Int
 
   jurusan         Jurusan @relation(fields: [jurusan_id], references: [id])
@@ -172,7 +173,7 @@ model Kelas {
 }
 
 model Jurusan {
-  id           BigInt   @id @default(autoincrement())
+  id           Int   @id @default(autoincrement())
   nama_jurusan String
 
   kelas        Kelas[]
