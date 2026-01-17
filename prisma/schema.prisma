@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum StatusAbsensi {
+  HADIR
+  IZIN
+  SAKIT
+  ALPHA
+}
+
+model Siswa {
+  id             String   @id @default(uuid()) @db.Char(36)
+  NISN           Int      @unique
+  NIPD           Int
+  nama_siswa     String
+  alamat         String
+  tanggal_lahir  DateTime
+  nomor_telepon  String
+  orangtua_id    Int
+  kelas_id       Int
+
+  orang_tua      OrangTua @relation(fields: [orangtua_id], references: [id])
+  kelas          Kelas    @relation(fields: [kelas_id], references: [id])
+  rfid           RFID[]
+  absensi        AbsensiSiswa[]
+
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  deleted_at     DateTime?
+
+  @@index([kelas_id])
+}
+
+model OrangTua {
+  id             Int      @id @default(autoincrement())
+  nama_orangtua  String
+  nomor_telepon  String
+
+  siswa          Siswa[]
+
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  deleted_at     DateTime?
+}
+
+model RFID {
+  id         BigInt   @id @default(autoincrement())
+  uid_rfid   BigInt   @unique
+  siswa_id   String   @db.Char(36)
+  is_active  Boolean  @default(true)
+
+  siswa      Siswa    @relation(fields: [siswa_id], references: [id])
+  absensi    AbsensiSiswa[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  deleted_at DateTime?
+}
+
+model AbsensiSiswa {
+  id         BigInt   @id @default(autoincrement())
+  siswa_id   String   @db.Char(36)
+  tanggal    DateTime
+  tap_in     BigInt?
+  tap_out    BigInt?
+  rfid_id    BigInt?
+
+  siswa      Siswa @relation(fields: [siswa_id], references: [id])
+  rfid       RFID? @relation(fields: [rfid_id], references: [id])
+  detail     DetailAbsensiSiswa[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  deleted_at DateTime?
+
+  @@index([siswa_id, tanggal])
+}
+
+model DetailAbsensiSiswa {
+  id          BigInt        @id @default(autoincrement())
+  absensi_id  BigInt
+  jadwal_id   BigInt
+  guru_id     BigInt
+  status      StatusAbsensi
+  jam_absen   DateTime
+  keterangan  String?
+
+  absensi     AbsensiSiswa @relation(fields: [absensi_id], references: [id])
+  jadwal      Jadwal       @relation(fields: [jadwal_id], references: [id])
+  guru        Guru         @relation(fields: [guru_id], references: [id])
+
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  deleted_at  DateTime?
+
+  @@index([jadwal_id])
+  @@index([guru_id])
+}
+
+model Guru {
+  id             BigInt   @id @default(autoincrement())
+  NIP            Int      @unique
+  nama           String
+  nomor_telepon  String
+  alamat         String
+  tanggal_lahir  DateTime
+
+  jadwal         Jadwal[]
+  detail_absensi DetailAbsensiSiswa[]
+
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  deleted_at     DateTime?
+}
+
+model Jadwal {
+  id             BigInt   @id @default(autoincrement())
+  tanggal_jadwal DateTime
+  kelas_id       Int
+  mapel_id       BigInt
+  guru_id        BigInt
+  jam_mulai      DateTime
+  jam_selesai    DateTime
+
+  kelas          Kelas         @relation(fields: [kelas_id], references: [id])
+  mata_pelajaran MataPelajaran @relation(fields: [mapel_id], references: [id])
+  guru           Guru          @relation(fields: [guru_id], references: [id])
+  detail_absensi DetailAbsensiSiswa[]
+
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  deleted_at     DateTime?
+
+  @@index([kelas_id, tanggal_jadwal])
+  @@index([guru_id, tanggal_jadwal])
+}
+
+model MataPelajaran {
+  id         BigInt   @id @default(autoincrement())
+  nama_mapel String
+
+  jadwal     Jadwal[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  deleted_at DateTime?
+}
+
+model Kelas {
+  id              Int      @id @default(autoincrement())
+  kelas           String
+  jurusan_id      BigInt
+  tahun_ajaran_id Int
+
+  jurusan         Jurusan @relation(fields: [jurusan_id], references: [id])
+  tahun           Tahun   @relation(fields: [tahun_ajaran_id], references: [id])
+  siswa           Siswa[]
+  jadwal          Jadwal[]
+
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  deleted_at      DateTime?
+
+  @@index([jurusan_id])
+  @@index([tahun_ajaran_id])
+}
+
+model Jurusan {
+  id           BigInt   @id @default(autoincrement())
+  nama_jurusan String
+
+  kelas        Kelas[]
+
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  deleted_at   DateTime?
+}
+
+model Tahun {
+  id           Int      @id @default(autoincrement())
+  tahun_ajaran String
+
+  kelas        Kelas[]
+
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  deleted_at   DateTime?
+}
