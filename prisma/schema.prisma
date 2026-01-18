@@ -110,7 +110,7 @@ model Guru {
   nama           String
   nomor_telepon  String
   alamat         String
-  tanggal_lahir  DateTime
+  tanggal_lahir  DateTime?
 
   jadwal         Jadwal[]
   detail_absensi DetailAbsensiSiswa[]
