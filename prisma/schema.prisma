@@ -17,31 +17,32 @@ enum StatusAbsensi {
 model Siswa {
   id             String   @id @default(uuid()) @db.Char(36)
   NISN           Int      @unique
-  NIPD           Int
+  NIPD           Int      @unique
   nama_siswa     String
   alamat         String
-  gender         String
-  tanggal_lahir  DateTime
-  nomor_telepon  String
-  orangtua_id    Int
-  kelas_id       Int
+  gender         String   @db.Char(1)
+  tanggal_lahir  DateTime @db.Date
+  nomor_telepon  String   @db.VarChar(15)
+  orangtua_id    Int?
+  kelas_id       Int?
 
-  orang_tua      OrangTua @relation(fields: [orangtua_id], references: [id])
-  kelas          Kelas    @relation(fields: [kelas_id], references: [id])
+  orang_tua      orang_tua? @relation(fields: [orangtua_id], references: [id])
+  kelas          Kelas?     @relation(fields: [kelas_id], references: [id])
   rfid           RFID[]
   absensi        AbsensiSiswa[]
 
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
   deleted_at     DateTime?
 
   @@index([kelas_id])
+  @@index([orangtua_id])
 }
 
-model OrangTua {
+model orang_tua {
   id             Int      @id @default(autoincrement())
   nama_orangtua  String
-  nomor_telepon  String
+  nomor_telepon  String   @db.VarChar(15)
 
   siswa          Siswa[]
 
@@ -51,8 +52,8 @@ model OrangTua {
 }
 
 model RFID {
-  id         Int   @id @default(autoincrement())
-  uid_rfid   Int   @unique
+  id         Int      @id @default(autoincrement())
+  uid_rfid   Int      @unique
   siswa_id   String   @db.Char(36)
   is_active  Boolean  @default(true)
 
@@ -62,12 +63,14 @@ model RFID {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   deleted_at DateTime?
+
+  @@index([siswa_id])
 }
 
 model AbsensiSiswa {
-  id         Int   @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   siswa_id   String   @db.Char(36)
-  tanggal    DateTime
+  tanggal    DateTime @db.Date
   tap_in     Int?
   tap_out    Int?
   rfid_id    Int?
@@ -81,16 +84,17 @@ model AbsensiSiswa {
   deleted_at DateTime?
 
   @@index([siswa_id, tanggal])
+  @@index([rfid_id])
 }
 
 model DetailAbsensiSiswa {
-  id          Int        @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   absensi_id  Int
   jadwal_id   Int
   guru_id     Int
   status      StatusAbsensi
   jam_absen   DateTime
-  keterangan  String?
+  keterangan  String?       @db.Text
 
   absensi     AbsensiSiswa @relation(fields: [absensi_id], references: [id])
   jadwal      Jadwal       @relation(fields: [jadwal_id], references: [id])
@@ -100,17 +104,18 @@ model DetailAbsensiSiswa {
   updated_at  DateTime @updatedAt
   deleted_at  DateTime?
 
+  @@index([absensi_id])
   @@index([jadwal_id])
   @@index([guru_id])
 }
 
 model Guru {
-  id             Int   @id @default(autoincrement())
-  NIP            Int      @unique
+  id             Int       @id @default(autoincrement())
+  NIP            Int       @unique
   nama           String
-  nomor_telepon  String
+  nomor_telepon  String    @db.VarChar(15)
   alamat         String
-  tanggal_lahir  DateTime?
+  tanggal_lahir  DateTime? @db.Date
 
   jadwal         Jadwal[]
   detail_absensi DetailAbsensiSiswa[]
@@ -121,13 +126,13 @@ model Guru {
 }
 
 model Jadwal {
-  id             Int   @id @default(autoincrement())
-  tanggal_jadwal DateTime
+  id             Int      @id @default(autoincrement())
+  tanggal_jadwal DateTime @db.Date
   kelas_id       Int
   mapel_id       Int
   guru_id        Int
-  jam_mulai      DateTime
-  jam_selesai    DateTime
+  jam_mulai      DateTime @db.Time
+  jam_selesai    DateTime @db.Time
 
   kelas          Kelas         @relation(fields: [kelas_id], references: [id])
   mata_pelajaran MataPelajaran @relation(fields: [mapel_id], references: [id])
@@ -140,10 +145,11 @@ model Jadwal {
 
   @@index([kelas_id, tanggal_jadwal])
   @@index([guru_id, tanggal_jadwal])
+  @@index([mapel_id])
 }
 
 model MataPelajaran {
-  id         Int   @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   nama_mapel String
 
   jadwal     Jadwal[]
@@ -170,11 +176,12 @@ model Kelas {
 
   @@index([jurusan_id])
   @@index([tahun_ajaran_id])
+  @@unique([kelas, jurusan_id, tahun_ajaran_id])
 }
 
 model Jurusan {
-  id           Int   @id @default(autoincrement())
-  nama_jurusan String
+  id           Int      @id @default(autoincrement())
+  nama_jurusan String   @unique
 
   kelas        Kelas[]
 
@@ -185,7 +192,7 @@ model Jurusan {
 
 model Tahun {
   id           Int      @id @default(autoincrement())
-  tahun_ajaran String
+  tahun_ajaran String   @unique
 
   kelas        Kelas[]
 
