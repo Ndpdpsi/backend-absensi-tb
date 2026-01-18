@@ -324,7 +324,200 @@ const createJadwal = async (req, res) => {
     }
 };
 
+// udpate jadwal 
+
+const updateJadwal = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { tanggal_jadwal, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
+
+        // validasi input 
+        if (!tanggal_jadwal || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
+            return res.status(400).json({
+                success: false,
+                message: "semua field haru terisi semua"
+            })
+        }
+
+        // Cek jadwal apakah ada
+        const existingJadwal = await prisma.jadwal.findFirst({
+            where: {
+                id: parseInt(id),
+                deleted_at: null
+            }
+        });
+
+        if (!existingJadwal) {
+            return res.status(404).json({
+                success: false,
+                message: "Jadwal tidak ditemukan"
+            });
+        }
+
+        // Validasi kelas, mapel, guru exists
+        const [kelasExists, mapelExists, guruExists] = await Promise.all([
+            prisma.kelas.findFirst({
+                where: { id: parseInt(kelas_id), deleted_at: null }
+            }),
+            prisma.mataPelajaran.findFirst({
+                where: { id: parseInt(mapel_id), deleted_at: null }
+            }),
+            prisma.guru.findFirst({
+                where: { id: parseInt(guru_id), deleted_at: null }
+            })
+        ]);
+
+        if (!kelasExists) {
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan"
+            });
+        }
+
+        if (!mapelExists) {
+            return res.status(404).json({
+                success: false,
+                message: "Mata pelajaran tidak ditemukan"
+            });
+        }
+
+        if (!guruExists) {
+            return res.status(404).json({
+                success: false,
+                message: "Guru tidak ditemukan"
+            });
+        }
+
+
+        // Konversi tanggal dan jam
+        const tanggalJadwalDate = new Date(tanggal_jadwal);
+        const jamMulaiDate = new Date(`${tanggal_jadwal} ${jam_mulai}`);
+        const jamSelesaiDate = new Date(`${tanggal_jadwal} ${jam_selesai}`);
+
+        if (jamSelesaiDate <= jamMulaiDate) {
+            return res.status(400).json({
+                success: false,
+                message: "Jam selesai harus setelah jam mulai"
+            });
+        }
+
+        // Cek konflik
+        const [conflictKelas, conflictGuru] = await Promise.all([
+            prisma.jadwal.findFirst({
+                where: {
+                    kelas_id: parseInt(kelas_id),
+                    tanggal_jadwal: tanggalJadwalDate,
+                    deleted_at: null,
+                    NOT: { id: parseInt(id) },
+                    OR: [
+                        {
+                            AND: [
+                                { jam_mulai: { lte: jamMulaiDate } },
+                                { jam_selesai: { gt: jamMulaiDate } }
+                            ]
+                        },
+                        {
+                            AND: [
+                                { jam_mulai: { lt: jamSelesaiDate } },
+                                { jam_selesai: { gte: jamSelesaiDate } }
+                            ]
+                        }
+                    ]
+                }
+            }),
+            prisma.jadwal.findFirst({
+                where: {
+                    guru_id: parseInt(guru_id),
+                    tanggal_jadwal: tanggalJadwalDate,
+                    deleted_at: null,
+                    NOT: { id: parseInt(id) },
+                    OR: [
+                        {
+                            AND: [
+                                { jam_mulai: { lte: jamMulaiDate } },
+                                { jam_selesai: { gt: jamMulaiDate } }
+                            ]
+                        },
+                        {
+                            AND: [
+                                { jam_mulai: { lt: jamSelesaiDate } },
+                                { jam_selesai: { gte: jamSelesaiDate } }
+                            ]
+                        }
+                    ]
+                }
+            })
+        ]);
+
+        if (conflictKelas) {
+            return res.status(409).json({
+                success: false,
+                message: "Jadwal bentrok dengan jadwal kelas lain"
+            });
+        }
+
+        if (conflictGuru) {
+            return res.status(409).json({
+                success: false,
+                message: "Guru sudah memiliki jadwal pada waktu yang sama"
+            });
+        }
+
+        // Update jadwal
+        const updatedJadwal = await prisma.jadwal.update({
+            where: {
+                id: parseInt(id)
+            },
+            data: {
+                tanggal_jadwal: tanggalJadwalDate,
+                kelas_id: parseInt(kelas_id),
+                mapel_id: parseInt(mapel_id),
+                guru_id: parseInt(guru_id),
+                jam_mulai: jamMulaiDate,
+                jam_selesai: jamSelesaiDate,
+                updated_at: new Date()
+            },
+            include: {
+                kelas: {
+                    select: {
+                        kelas: true,
+                        jurusan: {
+                            select: {
+                                nama_jurusan: true
+                            }
+                        }
+                    }
+                },
+                mata_pelajaran: {
+                    select: {
+                        nama_mapel: true
+                    }
+                },
+                guru: {
+                    select: {
+                        nama: true
+                    }
+                }
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Berhasil mengupdate jadwal",
+            data: updatedJadwal
+        });
+    } catch (error) {
+        console.error("Error updating jadwal:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+}
+
 module.exports = {
     getAllJadwal,
-    createJadwal
+    createJadwal,
+    updateJadwal
 }

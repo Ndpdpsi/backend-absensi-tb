@@ -11,7 +11,7 @@ const getAllGuru = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: "Berhasil mendapatkan data guru beserta jadwal",
+            message: "Berhasil mendapatkan data guru",
             data: guru
         });
     } catch (error) {
