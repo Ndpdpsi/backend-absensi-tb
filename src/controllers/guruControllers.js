@@ -7,35 +7,70 @@ const getAllGuru = async (req, res) => {
             where: {
                 deleted_at: null
             },
-            orderBy: {
-                created_at: "desc"
-            }
-        })
+        });
 
         return res.status(200).json({
             success: true,
-            message: "Berhasil mendapatkan data guru",
+            message: "Berhasil mendapatkan data guru beserta jadwal",
             data: guru
         });
     } catch (error) {
-        console.log("Error getting guru:", error);
+        console.error("Error getting guru:", error);
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
             error: error.message
         });
     }
-}
+};
+
 
 // get by id
 const getGuruById = async (req, res) => {
     try {
         const { id } = req.params;
 
+        if (isNaN(parseInt(id))) {
+            return res.status(400).json({
+                success: false,
+                message: "ID guru tidak valid"
+            });
+        }
+
         const guru = await prisma.Guru.findFirst({
             where: {
                 id: parseInt(id),
                 deleted_at: null
+            },
+            include: {
+                jadwal: {
+                    where: {
+                        deleted_at: null
+                    },
+                    orderBy: {
+                        tanggal_jadwal: "asc"
+                    },
+                    select: {
+                        tanggal_jadwal: true,
+                        jam_mulai: true,
+                        jam_selesai: true,
+                        kelas: {
+                            select: {
+                                kelas: true,
+                                jurusan: {
+                                    select: {
+                                        nama_jurusan: true
+                                    }
+                                }
+                            }
+                        },
+                        mata_pelajaran: {
+                            select: {
+                                nama_mapel: true
+                            }
+                        }
+                    }
+                }
             }
         });
 
@@ -48,18 +83,19 @@ const getGuruById = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: "Berhasil mendapatkan data guru",
+            message: "Berhasil mendapatkan data guru beserta jadwal",
             data: guru
         });
     } catch (error) {
-        console.log("Error getting guru:", error);
+        console.error("Error getting guru:", error);
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
             error: error.message
         });
     }
-}
+};
+
 
 // Create guru
 
@@ -90,15 +126,26 @@ const createGuru = async (req, res) => {
             });
         }
 
-        // buat data guru baru
+        // Konversi tanggal
+        const tanggalLahirDate = new Date(
+            tanggal_lahir.replace(" ", "T")
+        );
 
+        if (isNaN(tanggalLahirDate.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: "Format tanggal lahir tidak valid"
+            });
+        }
+
+        // buat data guru baru
         const newGuru = await prisma.Guru.create({
             data: {
                 NIP,
                 nama,
                 nomor_telepon,
                 alamat,
-                tanggal_lahir
+                tanggal_lahir: tanggalLahirDate
             }
         });
 
@@ -222,7 +269,7 @@ const deleteGuru = async (req, res) => {
                 guru_id: parseInt(id),
                 deleted_at: null
             }
-        }); 
+        });
 
         if (relatedJadwal) {
             return res.status(400).json({

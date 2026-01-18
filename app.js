@@ -12,6 +12,7 @@ var mapelRoutes = require('./src/routes/mapelRoutes');
 var guruRoutes = require('./src/routes/guruRoutes');
 var orangTuaRoutes = require('./src/routes/orangTuaRoutes')
 var kelasRoutes = require('./src/routes/kelasRoutes')
+var jadwalRoutes = require('./src/routes/jadwalRoutes')
 var siswaRoutes = require('./src/routes/siswaRoutes');
 
 
@@ -36,6 +37,7 @@ app.use('/api/mata-pelajaran', mapelRoutes);
 app.use('/api/guru', guruRoutes);
 app.use('/api/orang-tua', orangTuaRoutes)
 app.use('/api/kelas', kelasRoutes)
+app.use('/api/jadwal', jadwalRoutes)
 app.use('/api/jurusan', jurusanRoutes);
 
 // catch 404 and forward to error handler
