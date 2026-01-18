@@ -76,6 +76,7 @@ const getAllSiswa = async (req, res) => {
     }
 };
 
+
 // get user by ID
 const getSiswaById = async (req, res) => {
     try {

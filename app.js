@@ -8,6 +8,7 @@ require('dotenv').config();
 var indexRouter = require('./src/routes/index');
 var tahunRoutes = require('./src/routes/tahunRoutes');
 var jurusanRoutes = require('./src/routes/jurusanRoutes');
+var mapelRoutes = require('./src/routes/mapelRoutes');
 var siswaRoutes = require('./src/routes/siswaRoutes');
 
 
@@ -28,6 +29,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', indexRouter);
 app.use('/api', siswaRoutes);
 app.use('/api/tahun-ajaran', tahunRoutes);
+app.use('/api/mata-pelajaran', mapelRoutes);
 app.use('/api/jurusan', jurusanRoutes);
 
 // catch 404 and forward to error handler
