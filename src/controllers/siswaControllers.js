@@ -76,6 +76,7 @@ const getAllSiswa = async (req, res) => {
         console.error("Error in getAllSiswa:", error);
         return res.status(500).json({
             success: false,
+            message: "Terjadi kesalahan pada server",
             message: error.message
         });
     }
@@ -145,6 +146,7 @@ const getSiswaById = async (req, res) => {
         console.error("Error in getSiswaById:", error);
         return res.status(500).json({
             success: false,
+            message: "Terjadi kesalahan pada server",
             message: error.message
         });
     }
