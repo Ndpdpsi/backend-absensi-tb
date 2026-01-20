@@ -167,7 +167,7 @@ const createSiswa = async (req, res) => {
             orangtua_id
         } = req.body;
 
-        // Validasi input wajib - KELAS_ID SEKARANG WAJIB
+        // Validasi input wajib 
         if (!NISN || !NIPD || !nama_siswa || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
             return res.status(400).json({
                 success: false,
@@ -175,21 +175,22 @@ const createSiswa = async (req, res) => {
             });
         }
 
-        // Validasi NISN harus angka
-        if (isNaN(parseInt(NISN))) {
+        // validasi NISN harus angka
+        if (!/^\d+$/.test(NISN)) {
             return res.status(400).json({
                 success: false,
                 message: "NISN harus berupa angka"
             });
         }
 
-        // Validasi NIPD harus angka
-        if (isNaN(parseInt(NIPD))) {
+        // validasi NIPD harus angka
+        if (!/^\d+$/.test(NIPD)) {
             return res.status(400).json({
                 success: false,
                 message: "NIPD harus berupa angka"
             });
         }
+
 
         // Validasi kelas_id harus angka
         if (isNaN(parseInt(kelas_id))) {
@@ -200,9 +201,9 @@ const createSiswa = async (req, res) => {
         }
 
         // Cek duplikasi NISN
-        const existingNISN = await prisma.siswa.findFirst({
+        const existingNISN = await prisma.Siswa.findFirst({
             where: {
-                NISN: parseInt(NISN),
+                NISN,
                 deleted_at: null
             }
         });
@@ -215,9 +216,9 @@ const createSiswa = async (req, res) => {
         }
 
         // Cek duplikasi NIPD
-        const existingNIPD = await prisma.siswa.findFirst({
+        const existingNIPD = await prisma.Siswa.findFirst({
             where: {
-                NIPD: parseInt(NIPD),
+                NIPD,
                 deleted_at: null
             }
         });
@@ -229,8 +230,8 @@ const createSiswa = async (req, res) => {
             });
         }
 
-        // Validasi kelas exists - SEKARANG WAJIB
-        const kelasExists = await prisma.kelas.findFirst({
+        // Validasi kelas exists 
+        const kelasExists = await prisma.Kelas.findFirst({
             where: {
                 id: parseInt(kelas_id),
                 deleted_at: null
@@ -244,9 +245,9 @@ const createSiswa = async (req, res) => {
             });
         }
 
-        // Validasi orangtua exists (jika diisi)
+        // Validasi orangtua exists 
         if (orangtua_id) {
-            const orangTuaExists = await prisma.orang_tua.findFirst({
+            const orangTuaExists = await prisma.OrangTua.findFirst({
                 where: {
                     id: parseInt(orangtua_id),
                     deleted_at: null
@@ -273,8 +274,8 @@ const createSiswa = async (req, res) => {
         // Buat data siswa baru
         const newSiswa = await prisma.siswa.create({
             data: {
-                NISN: parseInt(NISN),
-                NIPD: parseInt(NIPD),
+                NISN: NISN,
+                NIPD: NIPD,
                 nama_siswa,
                 alamat,
                 gender,
@@ -343,7 +344,7 @@ const updateSiswa = async (req, res) => {
         }
 
         // Validasi NISN harus angka
-        if (isNaN(parseInt(NISN))) {
+        if (!/^\d+$/.test(NISN)) {
             return res.status(400).json({
                 success: false,
                 message: "NISN harus berupa angka"
@@ -351,7 +352,7 @@ const updateSiswa = async (req, res) => {
         }
 
         // Validasi NIPD harus angka
-        if (isNaN(parseInt(NIPD))) {
+        if (!/^\d+$/.test(NIPD)) {
             return res.status(400).json({
                 success: false,
                 message: "NIPD harus berupa angka"
@@ -416,7 +417,7 @@ const updateSiswa = async (req, res) => {
         // Cek duplikasi NISN (kecuali data sendiri)
         const duplicateNISN = await prisma.siswa.findFirst({
             where: {
-                NISN: parseInt(NISN),
+                NISN,
                 deleted_at: null,
                 NOT: {
                     id: id
@@ -434,7 +435,7 @@ const updateSiswa = async (req, res) => {
         // Cek duplikasi NIPD (kecuali data sendiri)
         const duplicateNIPD = await prisma.siswa.findFirst({
             where: {
-                NIPD: parseInt(NIPD),
+                NIPD,
                 deleted_at: null,
                 NOT: {
                     id: id
@@ -464,8 +465,8 @@ const updateSiswa = async (req, res) => {
                 id: id
             },
             data: {
-                NISN: parseInt(NISN),
-                NIPD: parseInt(NIPD),
+                NISN,
+                NIPD,
                 nama_siswa,
                 alamat,
                 gender,
