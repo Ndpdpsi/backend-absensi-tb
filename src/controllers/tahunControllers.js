@@ -20,7 +20,8 @@ const getAllTahunAjaran = async (req, res) => {
         console.error("Error getting tahun ajaran:", error);
         return res.status(500).json({
             success: false,
-            message: "Terjadi kesalahan pada server"
+            message: "Terjadi kesalahan pada server",
+            error: error.message
         });
     }
 }
@@ -30,7 +31,7 @@ const getTahunAjaranById = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const tahun = await prisma.Tahun.findUnique({
+        const tahun = await prisma.Tahun.findFirst({
             where: {
                 id: parseInt(id),
                 deleted_at: null
@@ -40,7 +41,7 @@ const getTahunAjaranById = async (req, res) => {
         if (!tahun) {
             return res.status(404).json({
                 success: false,
-                message: "Tahun ajaran tidak ditemukan"
+                message: "Tahun ajaran tidak ditemukan",
             });
         }
 
@@ -54,13 +55,14 @@ const getTahunAjaranById = async (req, res) => {
         console.error('error gagal mendapatkan tahun ajaran by ID:', error);
         return res.status(500).json({
             success: false,
-            message: "gagal mengambil data tahun ajaran"
+            message: "gagal mengambil data tahun ajaran",
+            error: error.message
         });
 
     }
 }
 
-
+// create tahun
 const createTahunAjaran = async (req, res) => {
     try {
         const { tahun_ajaran } = req.body;
@@ -89,10 +91,10 @@ const createTahunAjaran = async (req, res) => {
         }
 
         // buat tahun ajaran baru
-
         const newTahun = await prisma.Tahun.create({
             data: {
-                tahun_ajaran
+                tahun_ajaran,
+                is_active: true
             }
         });
 
@@ -104,9 +106,11 @@ const createTahunAjaran = async (req, res) => {
 
 
     } catch (error) {
+        console.error("Error creating tahun ajaran:", error); 
         return res.status(500).json({
             success: false,
-            message: "Gagal menambahkan tahun ajaran baru"
+            message: "Gagal menambahkan tahun ajaran baru",
+            error: error.message
         });
     }
 }
@@ -117,7 +121,7 @@ const createTahunAjaran = async (req, res) => {
 const updateTahunAjaran = async (req, res) => {
     try {
         const { id } = req.params;
-        const { tahun_ajaran } = req.body;
+        const { tahun_ajaran, is_active } = req.body;
 
         // validasi input tahun ajaran
         if (!tahun_ajaran) {
@@ -160,12 +164,13 @@ const updateTahunAjaran = async (req, res) => {
         }
 
         // Update data
-        const updatedTahun = await prisma.tahun.update({
+        const updatedTahun = await prisma.Tahun.update({
             where: {
                 id: parseInt(id),
             },
             data: {
                 tahun_ajaran,
+                is_active,
                 updated_at: new Date(),
             },
         });
@@ -180,6 +185,7 @@ const updateTahunAjaran = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'Gagal mengupdate data tahun ajaran',
+            error: error.message
         });
     }
 }
@@ -191,7 +197,7 @@ const deleteTahunAjaran = async (req, res) => {
         const { id } = req.params;
 
         // Cek apakah data ada
-        const existing = await prisma.tahun.findFirst({
+        const existing = await prisma.Tahun.findFirst({
             where: {
                 id: parseInt(id),
                 deleted_at: null,
@@ -222,7 +228,7 @@ const deleteTahunAjaran = async (req, res) => {
         }
 
         // Soft delete
-        await prisma.tahun.update({
+        await prisma.Tahun.update({
             where: {
                 id: parseInt(id),
             },
@@ -240,6 +246,7 @@ const deleteTahunAjaran = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'Gagal menghapus data tahun ajaran',
+            error: error.message
         });
     }
 
