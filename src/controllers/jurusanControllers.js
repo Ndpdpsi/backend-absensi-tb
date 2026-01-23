@@ -61,7 +61,7 @@ const getJurusanById = async (req, res) => {
     }
 }
 
-// CREATE - Menambahkan jurusan baru
+// CREATE
 const createJurusan = async (req, res) => {
     try {
         const { nama_jurusan } = req.body;

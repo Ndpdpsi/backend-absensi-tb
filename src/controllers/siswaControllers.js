@@ -6,7 +6,8 @@ const getAllSiswa = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
-
+        
+        // mencari data yang tidak di hapus
         const whereCondition = {
             deleted_at: null
         };
@@ -167,7 +168,7 @@ const createSiswa = async (req, res) => {
             orangtua_id
         } = req.body;
 
-        // Validasi input wajib 
+        // Validasi input 
         if (!NISN || !NIPD || !nama_siswa || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
             return res.status(400).json({
                 success: false,

@@ -13,6 +13,7 @@ var guruRoutes = require('./src/routes/guruRoutes');
 var orangTuaRoutes = require('./src/routes/orangTuaRoutes')
 var kelasRoutes = require('./src/routes/kelasRoutes')
 var jadwalRoutes = require('./src/routes/jadwalRoutes')
+var rfidRoutes = require('./src/routes/rfidRoutes')
 var siswaRoutes = require('./src/routes/siswaRoutes');
 
 
@@ -39,6 +40,7 @@ app.use('/api/orang-tua', orangTuaRoutes)
 app.use('/api/kelas', kelasRoutes)
 app.use('/api/jadwal', jadwalRoutes)
 app.use('/api/jurusan', jurusanRoutes);
+app.use('/api/rfid', rfidRoutes)
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

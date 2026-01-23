@@ -26,8 +26,8 @@ enum Gender {
 
 model Siswa {
   id            String   @id @default(uuid()) @db.Uuid
-  NISN          String   @unique
-  NIPD          String   @unique
+  NISN          String   
+  NIPD          String   
   nama_siswa    String   @db.VarChar(255)
   alamat        String   @db.Text
   gender        Gender
