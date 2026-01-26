@@ -102,7 +102,6 @@ model AbsensiSiswa {
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
-  @@unique([siswa_id, tanggal])
   @@index([tanggal])
   @@index([rfid_id])
   @@index([status_tapin])
