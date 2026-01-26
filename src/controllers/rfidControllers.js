@@ -306,9 +306,54 @@ const updateRFID = async (req, res) => {
     }
 }
 
+
+// delete RFID 
+
+const deleteRFID = async (req, res) => {
+    try {
+        const {id} = req.params;
+
+        //  cek apakah RFID ada
+        const existingRFID = await prisma.RFID.findFirst({
+            where: {
+                id: parseInt(id),
+                deleted_at: null
+            }
+        });
+
+        if (!existingRFID) {
+            return res.status(404).json({
+                success: false,
+                message: "RFID tidak ditemukan"
+            });
+        }
+
+        // soft delete RFID
+        await prisma.RFID.update({
+            where: { id: parseInt(id) },
+            data: {
+                deleted_at: new Date()
+            }
+        });
+
+        return res.status(200).json({
+            success: true, 
+            message: "berhasil menghapus data RFID"
+        })
+    } catch (error) {
+        console.error("error deleting RFID:", error)
+        return res.status(500).json({
+            success:false,
+            message: "terjadi kesalahan pada server",
+            error: error.message
+        })
+    }
+}
+
 module.exports = {
     getAllRfid,
     getRfidById,
     createRFID,
-    updateRFID
+    updateRFID,
+    deleteRFID
 }

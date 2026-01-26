@@ -8,6 +8,6 @@ router.get("/:id", rfidControllers.getRfidById);
 router.post("/", rfidControllers.createRFID);
 router.put("/:id", rfidControllers.updateRFID);
 router.patch("/:id", rfidControllers.updateRFID);
-// router.delete("/:id", mapelControllers.deleteMapel);
+router.delete("/:id", rfidControllers.deleteRFID);
 
 module.exports = router;
