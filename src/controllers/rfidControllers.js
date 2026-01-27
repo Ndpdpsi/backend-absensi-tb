@@ -1,5 +1,29 @@
 const prisma = require("../config/prisma");
 
+// format tanggal dan waktu ke dalam format Indonesia
+const formatDateTime = (date) => {
+  if (!date) return null;
+  return new Date(date).toLocaleString('id-ID', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: 'Asia/Jakarta'
+  });
+};
+
+const formatDate = (date) => {
+  if (!date) return null;
+  return new Date(date).toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta'
+  });
+};
+
 // get all
 const getAllRfid = async (req, res) => {
     try {
@@ -23,6 +47,7 @@ const getAllRfid = async (req, res) => {
                 include: {
                     siswa: {
                         select: {
+                            id: true,
                             nama_siswa: true,
                             NISN: true,
                             kelas: {
@@ -48,10 +73,21 @@ const getAllRfid = async (req, res) => {
             prisma.RFID.count({ where: whereCondition })
         ])
 
+        // Format response
+        const formattedData = data.map(rfid => ({
+            id: rfid.id,
+            uid_rfid: rfid.uid_rfid,
+            siswa_id: rfid.siswa_id,
+            is_active: rfid.is_active,
+            siswa: rfid.siswa,
+            created_at: formatDateTime(rfid.created_at),
+            updated_at: formatDateTime(rfid.updated_at)
+        }));
+
         return res.status(200).json({
             success: true,
-            message: "berhasil mengambil seluruh data RFID Siswa",
-            data: data,
+            message: "Berhasil mengambil seluruh data RFID siswa",
+            data: formattedData,
             pagination: {
                 page,
                 limit,
@@ -60,10 +96,10 @@ const getAllRfid = async (req, res) => {
             }
         })
     } catch (error) {
-        console.log("error getting RFID:", error)
+        console.error("Error getting RFID:", error)
         return res.status(500).json({
             success: false,
-            message: "terjadi kesalahan pada server",
+            message: "Terjadi kesalahan pada server",
             error: error.message
         })
     }
@@ -74,7 +110,7 @@ const getRfidById = async (req, res) => {
     try {
         const { id } = req.params
 
-        const rfid = await prisma.RFID.findUnique({
+        const rfid = await prisma.RFID.findFirst({
             where: {
                 id: parseInt(id),
                 deleted_at: null
@@ -82,7 +118,25 @@ const getRfidById = async (req, res) => {
             include: {
                 siswa: {
                     select: {
-                        nama_siswa: true
+                        id: true,
+                        nama_siswa: true,
+                        NISN: true,
+                        kelas: {
+                            select: {
+                                kelas: true,
+                                jurusan: {
+                                    select: {
+                                        nama_jurusan: true
+                                    }
+                                },
+                                tahun: {
+                                    select: {
+                                        tahun_ajaran: true,
+                                        is_active: true
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -95,13 +149,24 @@ const getRfidById = async (req, res) => {
             });
         }
 
+        // Format response
+        const formattedRfid = {
+            id: rfid.id,
+            uid_rfid: rfid.uid_rfid,
+            siswa_id: rfid.siswa_id,
+            is_active: rfid.is_active,
+            siswa: rfid.siswa,
+            created_at: formatDateTime(rfid.created_at),
+            updated_at: formatDateTime(rfid.updated_at)
+        };
+
         return res.status(200).json({
             success: true,
-            message: "berhasil mendapatkan data RFID",
-            data: rfid
+            message: "Berhasil mendapatkan data RFID",
+            data: formattedRfid
         })
     } catch (error) {
-        console.error('error getting by id RFID', error)
+        console.error('Error getting by id RFID', error)
         return res.status(500).json({
             success: false,
             message: "Terjadi kesalahan pada server",
@@ -119,7 +184,7 @@ const createRFID = async (req, res) => {
         if (!uid_rfid || !siswa_id) {
             return res.status(400).json({
                 success: false,
-                message: "Semua Field harus terisi"
+                message: "Semua field harus terisi"
             })
         }
 
@@ -179,6 +244,7 @@ const createRFID = async (req, res) => {
             include: {
                 siswa: {
                     select: {
+                        id: true,
                         nama_siswa: true,
                         NISN: true,
                         kelas: {
@@ -202,16 +268,27 @@ const createRFID = async (req, res) => {
             }
         })
 
+        // Format response
+        const formattedRFID = {
+            id: newRFID.id,
+            uid_rfid: newRFID.uid_rfid,
+            siswa_id: newRFID.siswa_id,
+            is_active: newRFID.is_active,
+            siswa: newRFID.siswa,
+            created_at: formatDateTime(newRFID.created_at),
+            updated_at: formatDateTime(newRFID.updated_at)
+        };
+
         return res.status(201).json({
             success: true,
-            message: "berhasil membuat data RFID baru",
-            data: newRFID
+            message: "Berhasil membuat data RFID baru",
+            data: formattedRFID
         })
     } catch (error) {
-        console.error("error creating RFID:", error)
+        console.error("Error creating RFID:", error)
         return res.status(500).json({
             success: false,
-            message: "terjadi kesalahan pada server",
+            message: "Terjadi kesalahan pada server",
             error: error.message
         })
     }
@@ -271,10 +348,63 @@ const updateRFID = async (req, res) => {
         }
 
         if (siswa_id !== undefined) {
+            // Validasi siswa exists jika siswa_id diubah
+            const siswaExists = await prisma.siswa.findFirst({
+                where: {
+                    id: siswa_id,
+                    deleted_at: null
+                }
+            });
+
+            if (!siswaExists) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Siswa tidak ditemukan"
+                });
+            }
+
+            // Cek apakah siswa sudah punya RFID aktif lain
+            if (is_active !== false) {
+                const existingSiswaRFID = await prisma.RFID.findFirst({
+                    where: {
+                        siswa_id,
+                        is_active: true,
+                        id: { not: parseInt(id) },
+                        deleted_at: null
+                    }
+                });
+
+                if (existingSiswaRFID) {
+                    return res.status(409).json({
+                        success: false,
+                        message: "Siswa sudah mempunyai RFID yang aktif"
+                    });
+                }
+            }
+
             updateData.siswa_id = siswa_id
         }
 
         if (is_active !== undefined) {
+            // Jika akan mengaktifkan RFID, cek apakah siswa sudah punya RFID aktif lain
+            if (is_active === true) {
+                const existingSiswaRFID = await prisma.RFID.findFirst({
+                    where: {
+                        siswa_id: siswa_id || existingRFID.siswa_id,
+                        is_active: true,
+                        id: { not: parseInt(id) },
+                        deleted_at: null
+                    }
+                });
+
+                if (existingSiswaRFID) {
+                    return res.status(409).json({
+                        success: false,
+                        message: "Siswa sudah mempunyai RFID yang aktif"
+                    });
+                }
+            }
+
             updateData.is_active = is_active
         }
 
@@ -284,23 +414,51 @@ const updateRFID = async (req, res) => {
             include: {
                 siswa: {
                     select: {
+                        id: true,
                         nama_siswa: true,
-                        NISN: true
+                        NISN: true,
+                        kelas: {
+                            select: {
+                                kelas: true,
+                                jurusan: {
+                                    select: {
+                                        nama_jurusan: true
+                                    }
+                                },
+                                tahun: {
+                                    select: {
+                                        tahun_ajaran: true,
+                                        is_active: true
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         });
 
+        // Format response
+        const formattedRFID = {
+            id: updatedRFID.id,
+            uid_rfid: updatedRFID.uid_rfid,
+            siswa_id: updatedRFID.siswa_id,
+            is_active: updatedRFID.is_active,
+            siswa: updatedRFID.siswa,
+            created_at: formatDateTime(updatedRFID.created_at),
+            updated_at: formatDateTime(updatedRFID.updated_at)
+        };
+
         return res.status(200).json({
             success: true,
-            message: "berhasil mengupdate data RFID",
-            data: updatedRFID
+            message: "Berhasil mengupdate data RFID",
+            data: formattedRFID
         })
     } catch (error) {
         console.error("Error updating RFID:", error)
         return res.status(500).json({
             success: false,
-            message: "terjadi kesalahan pada server",
+            message: "Terjadi kesalahan pada server",
             error: error.message
         })
     }
@@ -338,13 +496,13 @@ const deleteRFID = async (req, res) => {
 
         return res.status(200).json({
             success: true, 
-            message: "berhasil menghapus data RFID"
+            message: "Berhasil menghapus data RFID"
         })
     } catch (error) {
-        console.error("error deleting RFID:", error)
+        console.error("Error deleting RFID:", error)
         return res.status(500).json({
-            success:false,
-            message: "terjadi kesalahan pada server",
+            success: false,
+            message: "Terjadi kesalahan pada server",
             error: error.message
         })
     }

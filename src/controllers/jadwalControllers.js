@@ -1,8 +1,7 @@
 const prisma = require("../config/prisma");
 
-/**
- * Helper function untuk format waktu
- */
+
+// format tanggal dan waktu ke dalam format Indonesia
 const formatDateTime = (date) => {
   if (!date) return null;
   return new Date(date).toLocaleString('id-ID', {
@@ -112,7 +111,7 @@ const getAllJadwal = async (req, res) => {
         ]);
 
 
-        // format tanggal dan jam
+        // format response
         const formattedData = data.map(jadwal => ({
             id: jadwal.id,
             tanggal_jadwal: formatDate(jadwal.tanggal_jadwal),
