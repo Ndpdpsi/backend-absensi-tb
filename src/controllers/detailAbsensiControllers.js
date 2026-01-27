@@ -38,254 +38,212 @@ const formatTime = (time) => {
     });
 };
 
+const getTodayRange = () => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+
+  return { start, end };
+};
+
+
 
 // absensi untuk guru
 const absensiByGuru = async (req, res) => {
-    try {
-        const { jadwal_id, guru_id, absensi_data } = req.body;
+  try {
+    const { jadwal_id, guru_id, absensi_data = [] } = req.body;
 
-        // untuk set tanggal hari ini
-        const tanggal = new Date();
-        tanggal.setHours(0, 0, 0, 0);
-
-        // Validasi input
-        if (!jadwal_id || !guru_id) {
-            return res.status(400).json({
-                success: false,
-                message: 'Data tidak lengkap. Diperlukan: jadwal_id, guru_id'
-            });
-        }
-
-        // Validasi jadwal
-        const jadwal = await prisma.jadwal.findFirst({
-            where: {
-                id: parseInt(jadwal_id),
-                guru_id: parseInt(guru_id),
-                tanggal_jadwal: tanggal,
-                deleted_at: null
-            },
-            include: {
-                kelas: {
-                    include: {
-                        jurusan: true
-                    }
-                },
-                mata_pelajaran: true,
-                guru: true
-            }
-        });
-
-        if (!jadwal) {
-            return res.status(404).json({
-                success: false,
-                message: 'Jadwal tidak ditemukan atau Anda tidak memiliki akses'
-            });
-        }
-
-        // Ambil semua siswa di kelas
-        const siswaKelas = await prisma.siswa.findMany({
-            where: {
-                kelas_id: jadwal.kelas_id,
-                deleted_at: null
-            },
-            include: {
-                absensi: {
-                    where: {
-                        tanggal: tanggal,
-                        deleted_at: null
-                    },
-                    include: {
-                        detail: {
-                            where: {
-                                deleted_at: null
-                            },
-                            include: {
-                                jadwal: {
-                                    select: {
-                                        jam_mulai: true
-                                    }
-                                }
-                            },
-                            orderBy: {
-                                jadwal: {
-                                    jam_mulai: 'desc'
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        const detailAbsensiList = [];
-        const errors = [];
-
-        // cek apakah jadwal pertama
-        const jadwalHariIni = await prisma.jadwal.findMany({
-            where: {
-                kelas_id: jadwal.kelas_id,
-                tanggal_jadwal: tanggal,
-                deleted_at: null
-            },
-            orderBy: {
-                jam_mulai: 'asc'
-            }
-        });
-
-        const isJadwalPertama = jadwalHariIni.length > 0 && jadwalHariIni[0].id === jadwal.id;
-
-        // Process setiap siswa
-        for (const siswa of siswaKelas) {
-            let statusAbsensi = StatusAbsensi.ALPHA;
-            let keterangan = null;
-
-            // Cari atau buat absensi siswa untuk hari ini
-            let absensiSiswa = siswa.absensi[0];
-
-            if (!absensiSiswa) {
-                absensiSiswa = await prisma.absensiSiswa.create({
-                    data: {
-                        siswa_id: siswa.id,
-                        tanggal: tanggal,
-                        tap_in: null,
-                        tap_out: null,
-                        status_tapin: null
-                    }
-                });
-            }
-
-            // Cek apakah detail absensi sudah ada untuk jadwal 
-            const existingDetail = await prisma.detailAbsensiSiswa.findUnique({
-                where: {
-                    absensi_id_jadwal_id: {
-                        absensi_id: absensiSiswa.id,
-                        jadwal_id: jadwal.id
-                    },
-                    deleted_at: null
-                }
-            });
-
-            if (existingDetail) {
-                errors.push({
-                    siswa_id: siswa.id,
-                    nama_siswa: siswa.nama_siswa,
-                    error: 'Absensi untuk jadwal ini sudah dibuat sebelumnya'
-                });
-                continue;
-            }
-
-
-            if (isJadwalPertama) {
-                // guru pertama menggunakan tap_in
-                if (absensiSiswa.tap_in) {
-                    statusAbsensi = StatusAbsensi.HADIR;
-                    keterangan = `Tap in: ${formatTime(absensiSiswa.tap_in)} - ${absensiSiswa.status_tapin || ''}`;
-                } else {
-                    statusAbsensi = StatusAbsensi.ALPHA;
-                    keterangan = 'Tidak melakukan tap in';
-                }
-            } else {
-                // guru kedua menggunakan data terakhir dari detail absensi sebelumnya
-                const detailTerakhir = absensiSiswa.detail && absensiSiswa.detail.length > 0
-                    ? absensiSiswa.detail[0]
-                    : null;
-
-                if (detailTerakhir) {
-                    statusAbsensi = detailTerakhir.status;
-                    keterangan = `Melanjutkan status dari jadwal sebelumnya: ${detailTerakhir.status}`;
-                } else {
-                    // Jika tidak ada detail sebelumnya, cek tap_in sebagai fallback
-                    if (absensiSiswa.tap_in) {
-                        statusAbsensi = StatusAbsensi.HADIR;
-                        keterangan = `Tap in: ${formatTime(absensiSiswa.tap_in)}`;
-                    } else {
-                        statusAbsensi = StatusAbsensi.ALPHA;
-                        keterangan = 'Tidak ada data absensi sebelumnya';
-                    }
-                }
-            }
-
-            // Override dengan data manual jika ada
-            if (Array.isArray(absensi_data)) {
-                const manualData = absensi_data.find(d => d.siswa_id === siswa.id);
-                if (manualData) {
-                    if (manualData.status) statusAbsensi = manualData.status;
-                    if (manualData.keterangan) keterangan = manualData.keterangan;
-                }
-            }
-
-            // Buat detail absensi
-            const detailAbsensi = await prisma.detailAbsensiSiswa.create({
-                data: {
-                    absensi_id: absensiSiswa.id,
-                    jadwal_id: jadwal.id,
-                    guru_id: parseInt(guru_id),
-                    status: statusAbsensi,
-                    jam_absen: new Date(),
-                    keterangan: keterangan
-                },
-                include: {
-                    absensi: {
-                        include: {
-                            siswa: {
-                                select: {
-                                    id: true,
-                                    nama_siswa: true,
-                                    NISN: true,
-                                    NIPD: true
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            detailAbsensiList.push(detailAbsensi);
-        }
-
-        // Hitung statistik
-        const stats = {
-            total: detailAbsensiList.length,
-            hadir: detailAbsensiList.filter(d => d.status === 'HADIR').length,
-            izin: detailAbsensiList.filter(d => d.status === 'IZIN').length,
-            sakit: detailAbsensiList.filter(d => d.status === 'SAKIT').length,
-            alpha: detailAbsensiList.filter(d => d.status === 'ALPHA').length
-        };
-
-        return res.status(201).json({
-            success: true,
-            message: `Berhasil menyimpan ${detailAbsensiList.length} absensi`,
-            data: {
-                jadwal: {
-                    id: jadwal.id,
-                    mata_pelajaran: jadwal.mata_pelajaran.nama_mapel,
-                    kelas: `${jadwal.kelas.kelas} ${jadwal.kelas.jurusan.nama_jurusan}`,
-                    tanggal: formatDate(jadwal.tanggal_jadwal),
-                    jam_mulai: formatTime(jadwal.jam_mulai),
-                    jam_selesai: formatTime(jadwal.jam_selesai),
-                    guru: jadwal.guru.nama,
-                    is_jadwal_pertama: isJadwalPertama
-                },
-                statistik: stats,
-                detail_absensi: detailAbsensiList.map(d => ({
-                    id: d.id,
-                    siswa: d.absensi.siswa,
-                    status: d.status,
-                    jam_absen: formatDateTime(d.jam_absen),
-                    keterangan: d.keterangan
-                })),
-                errors: errors.length > 0 ? errors : undefined
-            }
-        });
-
-    } catch (error) {
-        console.error('Error absensi by guru:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Terjadi kesalahan pada server',
-            error: error.message
-        });
+    if (!jadwal_id || !guru_id) {
+      return res.status(400).json({
+        success: false,
+        message: "jadwal_id dan guru_id wajib diisi"
+      });
     }
+
+    const { start, end } = getTodayRange();
+    
+    const jadwal = await prisma.jadwal.findFirst({
+      where: {
+        id: Number(jadwal_id),
+        guru_id: Number(guru_id),
+        tanggal_jadwal: {
+          gte: start,
+          lte: end
+        },
+        deleted_at: null
+      },
+      include: {
+        kelas: { include: { jurusan: true } },
+        mata_pelajaran: true,
+        guru: true
+      }
+    });
+
+    if (!jadwal) {
+      return res.status(404).json({
+        success: false,
+        message: "Jadwal tidak ditemukan atau Anda tidak memiliki akses"
+      });
+    }
+
+    // Ambil jadwal hari ini (urut jam)
+    const jadwalHariIni = await prisma.jadwal.findMany({
+      where: {
+        kelas_id: jadwal.kelas_id,
+        tanggal_jadwal: {
+          gte: start,
+          lte: end
+        },
+        deleted_at: null
+      },
+      orderBy: { jam_mulai: "asc" }
+    });
+
+    const isJadwalPertama = jadwalHariIni[0]?.id === jadwal.id;
+
+    // Ambil siswa + absensi hari ini
+    const siswaList = await prisma.siswa.findMany({
+      where: {
+        kelas_id: jadwal.kelas_id,
+        deleted_at: null
+      },
+      include: {
+        absensi: {
+          where: {
+            tanggal: {
+              gte: start,
+              lte: end
+            },
+            deleted_at: null
+          },
+          include: {
+            detail: {
+              where: { deleted_at: null },
+              orderBy: {
+                jadwal: { jam_mulai: "desc" }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const result = [];
+    const errors = [];
+
+    for (const siswa of siswaList) {
+      let absensiSiswa = siswa.absensi[0];
+
+      if (!absensiSiswa) {
+        absensiSiswa = await prisma.absensiSiswa.create({
+          data: {
+            siswa_id: siswa.id,
+            tanggal: start
+          }
+        });
+      }
+
+      const alreadyExist = await prisma.detailAbsensiSiswa.findUnique({
+        where: {
+          absensi_id_jadwal_id: {
+            absensi_id: absensiSiswa.id,
+            jadwal_id: jadwal.id
+          }
+        }
+      });
+
+      if (alreadyExist) {
+        errors.push({
+          siswa_id: siswa.id,
+          nama: siswa.nama_siswa,
+          error: "Sudah diabsen"
+        });
+        continue;
+      }
+
+      let status = StatusAbsensi.ALPHA;
+      let keterangan = null;
+
+      if (isJadwalPertama) {
+        if (absensiSiswa.tap_in) {
+          status = StatusAbsensi.HADIR;
+          keterangan = `Tap in ${formatTime(absensiSiswa.tap_in)}`;
+        }
+      } else {
+        const lastDetail = absensiSiswa.detail?.[0];
+        if (lastDetail) {
+          status = lastDetail.status;
+          keterangan = `Lanjutan dari jadwal sebelumnya`;
+        }
+      }
+
+      const manual = absensi_data.find(a => a.siswa_id === siswa.id);
+      if (manual) {
+        status = manual.status || status;
+        keterangan = manual.keterangan || keterangan;
+      }
+
+      const detail = await prisma.detailAbsensiSiswa.create({
+        data: {
+          absensi_id: absensiSiswa.id,
+          jadwal_id: jadwal.id,
+          guru_id: Number(guru_id),
+          status,
+          jam_absen: new Date(),
+          keterangan
+        },
+        include: {
+          absensi: {
+            include: {
+              siswa: {
+                select: {
+                  id: true,
+                  nama_siswa: true,
+                  NISN: true,
+                  NIPD: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      result.push(detail);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Absensi berhasil disimpan",
+      data: {
+        jadwal: {
+          mapel: jadwal.mata_pelajaran.nama_mapel,
+          kelas: `${jadwal.kelas.kelas} ${jadwal.kelas.jurusan.nama_jurusan}`,
+          tanggal: formatDate(jadwal.tanggal_jadwal),
+          jam: `${formatTime(jadwal.jam_mulai)} - ${formatTime(jadwal.jam_selesai)}`,
+          guru: jadwal.guru.nama,
+          jadwal_pertama: isJadwalPertama
+        },
+        total: result.length,
+        detail: result.map(d => ({
+          siswa: d.absensi.siswa,
+          status: d.status,
+          jam_absen: formatDateTime(d.jam_absen),
+          keterangan: d.keterangan
+        })),
+        errors
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      success: false,
+      message: "Terjadi kesalahan server",
+      error: err.message
+    });
+  }
 };
 
 // update status absensi 
