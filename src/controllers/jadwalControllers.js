@@ -1,5 +1,49 @@
 const prisma = require("../config/prisma");
 
+/**
+ * Helper function untuk format waktu
+ */
+const formatDateTime = (date) => {
+  if (!date) return null;
+  return new Date(date).toLocaleString('id-ID', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: 'Asia/Jakarta'
+  });
+};
+
+const formatDate = (date) => {
+  if (!date) return null;
+  return new Date(date).toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta'
+  });
+};
+
+const formatTime = (time) => {
+  if (!time) return null;
+  if (typeof time === 'string') {
+    return time.substring(0, 5);
+  }
+  return new Date(time).toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta'
+  });
+};
+
+// Validasi format waktu HH:MM
+const validateTimeFormat = (time) => {
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    return timeRegex.test(time);
+};
+
 // get all jadwal
 const getAllJadwal = async (req, res) => {
     try {
@@ -67,9 +111,25 @@ const getAllJadwal = async (req, res) => {
             })
         ]);
 
+
+        // format tanggal dan jam
+        const formattedData = data.map(jadwal => ({
+            id: jadwal.id,
+            tanggal_jadwal: formatDate(jadwal.tanggal_jadwal),
+            jam_mulai: formatTime(jadwal.jam_mulai),
+            jam_selesai: formatTime(jadwal.jam_selesai),
+            jam_lengkap: `${formatTime(jadwal.jam_mulai)} - ${formatTime(jadwal.jam_selesai)}`,
+            kelas: jadwal.kelas,
+            mata_pelajaran: jadwal.mata_pelajaran,
+            guru: jadwal.guru,
+            created_at: formatDateTime(jadwal.created_at),
+            updated_at: formatDateTime(jadwal.updated_at)
+        }));
+
         return res.json({
             success: true,
-            data,
+            message: "Berhasil mendapatkan data jadwal",
+            data: formattedData,
             pagination: {
                 total,
                 page,
@@ -82,15 +142,10 @@ const getAllJadwal = async (req, res) => {
         console.error("Error in getAllJadwal:", error);
         return res.status(500).json({
             success: false,
-            message: error.message
+            message: "Terjadi kesalahan pada server",
+            error: error.message
         });
     }
-}
-
-// Validasi format waktu HH:MM
-const validateTimeFormat = (time) => {
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    return timeRegex.test(time);
 };
 
 // create jadwal 
@@ -328,10 +383,23 @@ const createJadwal = async (req, res) => {
             }
         });
 
+        // Format response
+        const formattedJadwal = {
+            id: newJadwal.id,
+            tanggal_jadwal: formatDate(newJadwal.tanggal_jadwal),
+            jam_mulai: formatTime(newJadwal.jam_mulai),
+            jam_selesai: formatTime(newJadwal.jam_selesai),
+            jam_lengkap: `${formatTime(newJadwal.jam_mulai)} - ${formatTime(newJadwal.jam_selesai)}`,
+            kelas: newJadwal.kelas,
+            mata_pelajaran: newJadwal.mata_pelajaran,
+            guru: newJadwal.guru,
+            created_at: formatDateTime(newJadwal.created_at)
+        };
+
         return res.status(201).json({
             success: true,
             message: "Berhasil menambahkan jadwal baru",
-            data: newJadwal
+            data: formattedJadwal
         });
 
     } catch (error) {
@@ -551,10 +619,23 @@ const updateJadwal = async (req, res) => {
             }
         });
 
+        // Format response
+        const formattedJadwal = {
+            id: updatedJadwal.id,
+            tanggal_jadwal: formatDate(updatedJadwal.tanggal_jadwal),
+            jam_mulai: formatTime(updatedJadwal.jam_mulai),
+            jam_selesai: formatTime(updatedJadwal.jam_selesai),
+            jam_lengkap: `${formatTime(updatedJadwal.jam_mulai)} - ${formatTime(updatedJadwal.jam_selesai)}`,
+            kelas: updatedJadwal.kelas,
+            mata_pelajaran: updatedJadwal.mata_pelajaran,
+            guru: updatedJadwal.guru,
+            updated_at: formatDateTime(updatedJadwal.updated_at)
+        };
+
         return res.status(200).json({
             success: true,
             message: "Berhasil mengupdate jadwal",
-            data: updatedJadwal
+            data: formattedJadwal
         });
     } catch (error) {
         console.error("Error updating jadwal:", error);
@@ -564,7 +645,7 @@ const updateJadwal = async (req, res) => {
             error: error.message
         });
     }
-}
+};
 
 // delete jadwal 
 const deleteJadwal = async (req, res) => {
@@ -608,11 +689,11 @@ const deleteJadwal = async (req, res) => {
             error: error.message
         });
     }
-}
+};
 
 module.exports = {
     getAllJadwal,
     createJadwal,
     updateJadwal,
     deleteJadwal
-}
+};
