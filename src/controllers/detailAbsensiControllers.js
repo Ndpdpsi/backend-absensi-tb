@@ -157,7 +157,7 @@ const absensiByGuru = async (req, res) => {
       if (alreadyExist) {
         errors.push({
           siswa_id: siswa.id,
-          nama: siswa.nama_siswa,
+          nama: siswa.nama,
           error: "Sudah diabsen"
         });
         continue;
@@ -200,7 +200,7 @@ const absensiByGuru = async (req, res) => {
               siswa: {
                 select: {
                   id: true,
-                  nama_siswa: true,
+                  nama: true,
                   NISN: true,
                   NIPD: true
                 }
@@ -276,7 +276,7 @@ const updateStatusAbsensiManual = async (req, res) => {
                     include: {
                         siswa: {
                             select: {
-                                nama_siswa: true,
+                                nama: true,
                                 NISN: true
                             }
                         }
@@ -315,7 +315,7 @@ const updateStatusAbsensiManual = async (req, res) => {
                         siswa: {
                             select: {
                                 id: true,
-                                nama_siswa: true,
+                                nama: true,
                                 NISN: true,
                                 NIPD: true
                             }
@@ -386,7 +386,7 @@ const getDaftarAbsensiByJadwal = async (req, res) => {
                                 siswa: {
                                     select: {
                                         id: true,
-                                        nama_siswa: true,
+                                        nama: true,
                                         NISN: true,
                                         NIPD: true,
                                         gender: true
@@ -404,7 +404,7 @@ const getDaftarAbsensiByJadwal = async (req, res) => {
                     orderBy: {
                         absensi: {
                             siswa: {
-                                nama_siswa: 'asc'
+                                nama: 'asc'
                             }
                         }
                     }
@@ -510,7 +510,7 @@ const getRekapAbsensiSiswa = async (req, res) => {
                         siswa: {
                             select: {
                                 id: true,
-                                nama_siswa: true,
+                                nama: true,
                                 NISN: true,
                                 NIPD: true,
                                 kelas: {
@@ -636,7 +636,7 @@ const getLaporanHarianPerKelas = async (req, res) => {
                     },
                     select: {
                         id: true,
-                        nama_siswa: true,
+                        nama: true,
                         NISN: true,
                         NIPD: true
                     }
@@ -671,7 +671,7 @@ const getLaporanHarianPerKelas = async (req, res) => {
                                 siswa: {
                                     select: {
                                         id: true,
-                                        nama_siswa: true,
+                                        nama: true,
                                         NISN: true
                                     }
                                 }
@@ -776,7 +776,7 @@ const deleteDetailAbsensi = async (req, res) => {
                     include: {
                         siswa: {
                             select: {
-                                nama_siswa: true
+                                nama: true
                             }
                         }
                     }
@@ -808,7 +808,7 @@ const deleteDetailAbsensi = async (req, res) => {
             message: 'Berhasil menghapus detail absensi',
             data: {
                 id: detailAbsensi.id,
-                siswa: detailAbsensi.absensi.siswa.nama_siswa,
+                siswa: detailAbsensi.absensi.siswa.nama,
                 mata_pelajaran: detailAbsensi.jadwal.mata_pelajaran.nama_mapel,
                 tanggal: formatDate(detailAbsensi.absensi.tanggal)
             }

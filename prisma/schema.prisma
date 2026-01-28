@@ -33,15 +33,39 @@ enum Hari {
   SABTU
 }
 
+enum Role {
+  ADMIN
+  GURU
+}
+
+model User {
+  id       String @id @default(uuid()) @db.Uuid
+  email    String @unique
+  password String
+  role     Role
+
+  guru_id Int? @unique
+  guru    Guru? @relation(fields: [guru_id], references: [id], onDelete: SetNull)
+
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+
+  @@index([deleted_at])
+  @@map("users")
+}
+
+
+
 model Siswa {
   id            String   @id @default(uuid()) @db.Uuid
   NISN          String   @unique
   NIPD          String   @unique
-  nama_siswa    String   @db.VarChar(255)
-  alamat        String   @db.Text
+  nama          String
+  alamat        String
   gender        Gender
   tanggal_lahir DateTime @db.Date
-  nomor_telepon String   @db.VarChar(15)
+  nomor_telepon String
   orangtua_id   Int?
   kelas_id      Int?
 
@@ -50,9 +74,9 @@ model Siswa {
   rfid      RFID[]
   absensi   AbsensiSiswa[]
 
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at DateTime  @updatedAt @db.Timestamptz(6)
-  deleted_at DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
 
   @@index([kelas_id])
   @@index([orangtua_id])
@@ -60,10 +84,12 @@ model Siswa {
   @@map("siswa")
 }
 
+
 model OrangTua {
   id            Int    @id @default(autoincrement())
   nama_orangtua String @db.VarChar(255)
   nomor_telepon String @db.VarChar(15)
+  telegram_id   BigInt? @unique
 
   siswa Siswa[]
 
@@ -72,6 +98,7 @@ model OrangTua {
   deleted_at DateTime? @db.Timestamptz(6)
 
   @@index([deleted_at])
+  @@index([telegram_id])
   @@map("orang_tua")
 }
 
@@ -145,12 +172,14 @@ model DetailAbsensiSiswa {
 }
 
 model Guru {
-  id            Int       @id @default(autoincrement())
-  NIP           String    @unique @db.VarChar(20)
-  nama          String    @db.VarChar(255)
-  nomor_telepon String    @db.VarChar(15)
-  alamat        String    @db.Text
-  tanggal_lahir DateTime? @db.Date
+  id            Int    @id @default(autoincrement())
+  NIP           String @unique
+  nama          String
+  nomor_telepon String
+  alamat        String
+  tanggal_lahir DateTime?
+
+  user User?
 
   jadwal         Jadwal[]
   detail_absensi DetailAbsensiSiswa[]
@@ -159,9 +188,9 @@ model Guru {
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
-  @@index([deleted_at])
   @@map("guru")
 }
+
 
 model Jadwal {
   id          Int      @id @default(autoincrement())
@@ -172,9 +201,9 @@ model Jadwal {
   jam_mulai   DateTime @db.Time(6)
   jam_selesai DateTime @db.Time(6)
 
-  kelas          Kelas         @relation(fields: [kelas_id], references: [id], onDelete: Restrict)
-  mata_pelajaran MataPelajaran @relation(fields: [mapel_id], references: [id], onDelete: Restrict)
-  guru           Guru          @relation(fields: [guru_id], references: [id], onDelete: Restrict)
+  kelas          Kelas                @relation(fields: [kelas_id], references: [id], onDelete: Restrict)
+  mata_pelajaran MataPelajaran        @relation(fields: [mapel_id], references: [id], onDelete: Restrict)
+  guru           Guru                 @relation(fields: [guru_id], references: [id], onDelete: Restrict)
   detail_absensi DetailAbsensiSiswa[]
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
@@ -208,8 +237,8 @@ model Kelas {
   jurusan_id      Int
   tahun_ajaran_id Int
 
-  jurusan Jurusan @relation(fields: [jurusan_id], references: [id], onDelete: Restrict)
-  tahun   Tahun   @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Restrict)
+  jurusan Jurusan  @relation(fields: [jurusan_id], references: [id], onDelete: Restrict)
+  tahun   Tahun    @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Restrict)
   siswa   Siswa[]
   jadwal  Jadwal[]
 

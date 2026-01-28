@@ -159,7 +159,7 @@ const createSiswa = async (req, res) => {
         const {
             NISN,
             NIPD,
-            nama_siswa,
+            nama,
             alamat,
             gender,
             tanggal_lahir,
@@ -169,7 +169,7 @@ const createSiswa = async (req, res) => {
         } = req.body;
 
         // Validasi input 
-        if (!NISN || !NIPD || !nama_siswa || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
+        if (!NISN || !NIPD || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
             return res.status(400).json({
                 success: false,
                 message: "NISN, NIPD, nama siswa, alamat, gender, tanggal lahir, nomor telepon, dan kelas wajib diisi"
@@ -277,7 +277,7 @@ const createSiswa = async (req, res) => {
             data: {
                 NISN: NISN,
                 NIPD: NIPD,
-                nama_siswa,
+                nama,
                 alamat,
                 gender,
                 tanggal_lahir: tanggalLahirDate,
@@ -327,7 +327,7 @@ const updateSiswa = async (req, res) => {
         const {
             NISN,
             NIPD,
-            nama_siswa,
+            nama,
             alamat,
             gender,
             tanggal_lahir,
@@ -337,7 +337,7 @@ const updateSiswa = async (req, res) => {
         } = req.body;
 
         // Validasi input wajib - KELAS_ID WAJIB
-        if (!NISN || !NIPD || !nama_siswa || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
+        if (!NISN || !NIPD || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
             return res.status(400).json({
                 success: false,
                 message: "NISN, NIPD, nama siswa, alamat, gender, tanggal lahir, nomor telepon, dan kelas wajib diisi"
@@ -468,7 +468,7 @@ const updateSiswa = async (req, res) => {
             data: {
                 NISN,
                 NIPD,
-                nama_siswa,
+                nama,
                 alamat,
                 gender,
                 tanggal_lahir: tanggalLahirDate,

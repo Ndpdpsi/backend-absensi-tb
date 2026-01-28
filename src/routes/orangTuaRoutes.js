@@ -7,5 +7,6 @@ router.get("/:id", ortuControllers.getOrangTuaById)
 router.post("/", ortuControllers.createOrangTua)
 router.put("/:id", ortuControllers.updateOrangTua)
 router.delete("/:id", ortuControllers.deleteOrangTua)
+router.patch('/:id/telegram', ortuControllers.setTelegramChatId);
 
 module.exports = router;

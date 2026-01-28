@@ -5,6 +5,9 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 require('dotenv').config();
 
+// Inisialisasi layanan Telegram
+require('./src/services/telegramServices');
+
 var indexRouter = require('./src/routes/index');
 var tahunRoutes = require('./src/routes/tahunRoutes');
 var jurusanRoutes = require('./src/routes/jurusanRoutes');

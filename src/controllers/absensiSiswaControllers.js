@@ -1,39 +1,41 @@
 const prisma = require("../config/prisma");
+const { sendTapInNotification, sendTapOutNotification } = require("../services/telegramServices");
+
 
 // format tanggal dan waktu ke dalam format Indonesia
 const formatDateTime = (date) => {
-  if (!date) return null;
-  return new Date(date).toLocaleString('id-ID', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    timeZone: 'Asia/Jakarta'
-  });
+    if (!date) return null;
+    return new Date(date).toLocaleString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'Asia/Jakarta'
+    });
 };
 
 const formatDate = (date) => {
-  if (!date) return null;
-  return new Date(date).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Asia/Jakarta'
-  });
+    if (!date) return null;
+    return new Date(date).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta'
+    });
 };
 
 const formatTime = (time) => {
-  if (!time) return null;
-  if (typeof time === 'string') {
-    return time.substring(0, 5);
-  }
-  return new Date(time).toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Jakarta'
-  });
+    if (!time) return null;
+    if (typeof time === 'string') {
+        return time.substring(0, 5);
+    }
+    return new Date(time).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+    });
 };
 
 // get hari untuk validasi hari untuk tapin absensi
@@ -41,6 +43,7 @@ const validateHari = (hari) => {
     const validHari = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
     return validHari[hari.getDay()];
 };
+
 
 // Tap In 
 const tapIn = async (req, res) => {
@@ -55,7 +58,7 @@ const tapIn = async (req, res) => {
             });
         }
 
-        // Cari RFID yang aktif
+        // Cari RFID yang aktif - INCLUDE ORANG TUA
         const rfid = await prisma.rFID.findFirst({
             where: {
                 uid_rfid,
@@ -65,7 +68,12 @@ const tapIn = async (req, res) => {
             include: {
                 siswa: {
                     include: {
-                        kelas: true
+                        kelas: {
+                            include: {
+                                jurusan: true
+                            }
+                        },
+                        orang_tua: true 
                     }
                 }
             }
@@ -108,6 +116,14 @@ const tapIn = async (req, res) => {
         // Dapatkan nama hari ini
         const hariIni = validateHari(new Date());
 
+        // Cek jika hari Minggu
+        if (hariIni === 'MINGGU') {
+            return res.status(400).json({
+                success: false,
+                message: "Tidak ada jadwal di hari Minggu"
+            });
+        }
+
         // Ambil jadwal pertama hari ini untuk kelas siswa
         const jadwalPertama = await prisma.jadwal.findFirst({
             where: {
@@ -149,7 +165,7 @@ const tapIn = async (req, res) => {
                 include: {
                     siswa: {
                         select: {
-                            nama_siswa: true,
+                            nama: true,
                             NISN: true,
                             kelas: {
                                 select: {
@@ -182,7 +198,7 @@ const tapIn = async (req, res) => {
                 include: {
                     siswa: {
                         select: {
-                            nama_siswa: true,
+                            nama: true,
                             NISN: true,
                             kelas: {
                                 select: {
@@ -203,6 +219,23 @@ const tapIn = async (req, res) => {
                     }
                 }
             });
+        }
+
+        // kirim notifikasi telegram
+        if (rfid.siswa.orang_tua && rfid.siswa.orang_tua.telegram_id) {
+            const notifData = {
+                nama: rfid.siswa.nama,
+                kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan.nama_jurusan}`,
+                status_tapin: statusTapIn,
+                tap_in: formatTime(tapInTime),
+                tanggal: formatDate(today)
+            };
+
+            // Kirim async (tidak menunggu response)
+            sendTapInNotification(rfid.siswa.orang_tua.telegram_id, notifData)
+                .catch(error => {
+                    console.error('Failed to send Telegram notification:', error);
+                });
         }
 
         // Format response
@@ -246,7 +279,7 @@ const tapOut = async (req, res) => {
             });
         }
 
-        // Cari RFID yang aktif
+        // Cari RFID yang aktif - INCLUDE ORANG TUA
         const rfid = await prisma.rFID.findFirst({
             where: {
                 uid_rfid,
@@ -254,7 +287,16 @@ const tapOut = async (req, res) => {
                 deleted_at: null
             },
             include: {
-                siswa: true
+                siswa: {
+                    include: {
+                        kelas: {
+                            include: {
+                                jurusan: true
+                            }
+                        },
+                        orang_tua: true 
+                    }
+                }
             }
         });
 
@@ -302,16 +344,18 @@ const tapOut = async (req, res) => {
             });
         }
 
+        const tapOutTime = new Date();
+
         // Update tap out pada record yang sudah ada
         const updatedAbsensi = await prisma.absensiSiswa.update({
             where: { id: absensiTapIn.id },
             data: {
-                tap_out: new Date()
+                tap_out: tapOutTime
             },
             include: {
                 siswa: {
                     select: {
-                        nama_siswa: true,
+                        nama: true,
                         NISN: true,
                         kelas: {
                             select: {
@@ -332,6 +376,21 @@ const tapOut = async (req, res) => {
                 }
             }
         });
+
+        // kirim notifikasi telegram
+        if (rfid.siswa.orang_tua && rfid.siswa.orang_tua.telegram_id) {
+            const notifData = {
+                nama: rfid.siswa.nama,
+                kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan.nama_jurusan}`,
+                tap_out: formatTime(tapOutTime),
+                tanggal: formatDate(today)
+            };
+
+            sendTapOutNotification(rfid.siswa.orang_tua.telegram_id, notifData)
+                .catch(error => {
+                    console.error('Failed to send Telegram notification:', error);
+                });
+        }
 
         // Format response
         const formattedAbsensi = {
@@ -406,7 +465,7 @@ const getAllAbsensi = async (req, res) => {
                 include: {
                     siswa: {
                         select: {
-                            nama_siswa: true,
+                            nama: true,
                             NISN: true,
                             kelas: {
                                 select: {
@@ -484,7 +543,7 @@ const getAbsensiById = async (req, res) => {
             include: {
                 siswa: {
                     select: {
-                        nama_siswa: true,
+                        nama: true,
                         NISN: true,
                         kelas: {
                             select: {
@@ -614,7 +673,7 @@ const getLaporanHarian = async (req, res) => {
             include: {
                 siswa: {
                     select: {
-                        nama_siswa: true,
+                        nama: true,
                         NISN: true,
                         kelas: {
                             select: {
@@ -725,7 +784,7 @@ const updateAbsensi = async (req, res) => {
             include: {
                 siswa: {
                     select: {
-                        nama_siswa: true,
+                        nama: true,
                         NISN: true,
                         kelas: {
                             select: {
