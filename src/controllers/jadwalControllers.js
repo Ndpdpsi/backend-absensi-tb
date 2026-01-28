@@ -15,16 +15,6 @@ const formatDateTime = (date) => {
   });
 };
 
-const formatDate = (date) => {
-  if (!date) return null;
-  return new Date(date).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Asia/Jakarta'
-  });
-};
-
 const formatTime = (time) => {
   if (!time) return null;
   if (typeof time === 'string') {
@@ -41,6 +31,12 @@ const formatTime = (time) => {
 const validateTimeFormat = (time) => {
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     return timeRegex.test(time);
+};
+
+// Validasi hari
+const validateHari = (hari) => {
+    const validHari = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+    return validHari.includes(hari.toUpperCase());
 };
 
 // get all jadwal
@@ -64,13 +60,18 @@ const getAllJadwal = async (req, res) => {
             whereCondition.guru_id = parseInt(req.query.guru_id);
         }
 
+        // Filter by hari if provided
+        if (req.query.hari) {
+            whereCondition.hari = req.query.hari.toUpperCase();
+        }
+
         const [data, total] = await Promise.all([
             prisma.jadwal.findMany({
                 where: whereCondition,
                 skip,
                 take: limit,
                 orderBy: [
-                    { tanggal_jadwal: "desc" },
+                    { hari: "asc" },
                     { jam_mulai: "asc" }
                 ],
                 include: {
@@ -114,7 +115,7 @@ const getAllJadwal = async (req, res) => {
         // format response
         const formattedData = data.map(jadwal => ({
             id: jadwal.id,
-            tanggal_jadwal: formatDate(jadwal.tanggal_jadwal),
+            hari: jadwal.hari,
             jam_mulai: formatTime(jadwal.jam_mulai),
             jam_selesai: formatTime(jadwal.jam_selesai),
             jam_lengkap: `${formatTime(jadwal.jam_mulai)} - ${formatTime(jadwal.jam_selesai)}`,
@@ -151,7 +152,7 @@ const getAllJadwal = async (req, res) => {
 const createJadwal = async (req, res) => {
     try {
         const {
-            tanggal_jadwal,
+            hari,
             kelas_id,
             mapel_id,
             guru_id,
@@ -160,10 +161,18 @@ const createJadwal = async (req, res) => {
         } = req.body;
 
         // Validasi input wajib
-        if (!tanggal_jadwal || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
+        if (!hari || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
             return res.status(400).json({
                 success: false,
                 message: "Semua field wajib diisi"
+            });
+        }
+
+        // Validasi hari
+        if (!validateHari(hari)) {
+            return res.status(400).json({
+                success: false,
+                message: "Hari tidak valid (gunakan: SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU)"
             });
         }
 
@@ -228,67 +237,57 @@ const createJadwal = async (req, res) => {
             });
         }
 
-        // Konversi tanggal dan jam
-        const tanggalJadwalDate = new Date(tanggal_jadwal);
-        if (isNaN(tanggalJadwalDate.getTime())) {
-            return res.status(400).json({
-                success: false,
-                message: "Format tanggal jadwal tidak valid (gunakan YYYY-MM-DD)"
-            });
-        }
-
-        // konversi jam mulai dan selesai menjadi format ISO
-        const jamMulaiDate = new Date(`${tanggal_jadwal}T${jam_mulai}:00`);
-        const jamSelesaiDate = new Date(`${tanggal_jadwal}T${jam_selesai}:00`);
-
-        if (isNaN(jamMulaiDate.getTime()) || isNaN(jamSelesaiDate.getTime())) {
-            return res.status(400).json({
-                success: false,
-                message: "Format jam tidak valid (gunakan HH:MM)"
-            });
-        }
+        // Konversi jam ke format Time untuk PostgreSQL
+        const jamMulaiTime = `${jam_mulai}:00`;
+        const jamSelesaiTime = `${jam_selesai}:00`;
 
         // Validasi jam selesai harus setelah jam mulai
-        if (jamSelesaiDate <= jamMulaiDate) {
+        const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
+        const [jamSelesaiHour, jamSelesaiMinute] = jam_selesai.split(':').map(Number);
+        
+        const totalMulai = jamMulaiHour * 60 + jamMulaiMinute;
+        const totalSelesai = jamSelesaiHour * 60 + jamSelesaiMinute;
+
+        if (totalSelesai <= totalMulai) {
             return res.status(400).json({
                 success: false,
                 message: "Jam selesai harus setelah jam mulai"
             });
         }
 
-        // cek konflik jadwal
+        // Cek konflik jadwal kelas
         const conflictKelas = await prisma.jadwal.findFirst({
             where: {
                 kelas_id: parseInt(kelas_id),
-                tanggal_jadwal: tanggalJadwalDate,
+                hari: hari.toUpperCase(),
                 deleted_at: null,
                 OR: [
                     // Case 1: Jadwal baru dimulai saat jadwal existing berlangsung
                     {
                         AND: [
-                            { jam_mulai: { lte: jamMulaiDate } },
-                            { jam_selesai: { gt: jamMulaiDate } }
+                            { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                            { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }
                         ]
                     },
                     // Case 2: Jadwal baru berakhir saat jadwal existing berlangsung
                     {
                         AND: [
-                            { jam_mulai: { lt: jamSelesaiDate } },
-                            { jam_selesai: { gte: jamSelesaiDate } }
+                            { jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } },
+                            { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                         ]
                     },
                     // Case 3: Jadwal baru membungkus jadwal existing
                     {
                         AND: [
-                            { jam_mulai: { gte: jamMulaiDate } },
-                            { jam_selesai: { lte: jamSelesaiDate } }
+                            { jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                            { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                         ]
                     },
                     // Case 4: Jadwal existing membungkus jadwal baru
                     {
                         AND: [
-                            { jam_mulai: { lte: jamMulaiDate } },
-                            { jam_selesai: { gte: jamSelesaiDate } }
+                            { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                            { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                         ]
                     }
                 ]
@@ -302,39 +301,39 @@ const createJadwal = async (req, res) => {
             });
         }
 
-        // cek konflik jadwal
+        // Cek konflik jadwal guru
         const conflictGuru = await prisma.jadwal.findFirst({
             where: {
                 guru_id: parseInt(guru_id),
-                tanggal_jadwal: tanggalJadwalDate,
+                hari: hari.toUpperCase(),
                 deleted_at: null,
                 OR: [
                     // Case 1: Jadwal baru dimulai saat jadwal existing berlangsung
                     {
                         AND: [
-                            { jam_mulai: { lte: jamMulaiDate } },
-                            { jam_selesai: { gt: jamMulaiDate } }
+                            { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                            { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }
                         ]
                     },
                     // Case 2: Jadwal baru berakhir saat jadwal existing berlangsung
                     {
                         AND: [
-                            { jam_mulai: { lt: jamSelesaiDate } },
-                            { jam_selesai: { gte: jamSelesaiDate } }
+                            { jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } },
+                            { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                         ]
                     },
                     // Case 3: Jadwal baru membungkus jadwal existing
                     {
                         AND: [
-                            { jam_mulai: { gte: jamMulaiDate } },
-                            { jam_selesai: { lte: jamSelesaiDate } }
+                            { jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                            { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                         ]
                     },
                     // Case 4: Jadwal existing membungkus jadwal baru
                     {
                         AND: [
-                            { jam_mulai: { lte: jamMulaiDate } },
-                            { jam_selesai: { gte: jamSelesaiDate } }
+                            { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                            { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                         ]
                     }
                 ]
@@ -351,12 +350,12 @@ const createJadwal = async (req, res) => {
         // Buat jadwal baru
         const newJadwal = await prisma.jadwal.create({
             data: {
-                tanggal_jadwal: tanggalJadwalDate,
+                hari: hari.toUpperCase(),
                 kelas_id: parseInt(kelas_id),
                 mapel_id: parseInt(mapel_id),
                 guru_id: parseInt(guru_id),
-                jam_mulai: jamMulaiDate,
-                jam_selesai: jamSelesaiDate
+                jam_mulai: new Date(`1970-01-01T${jamMulaiTime}`),
+                jam_selesai: new Date(`1970-01-01T${jamSelesaiTime}`)
             },
             include: {
                 kelas: {
@@ -385,7 +384,7 @@ const createJadwal = async (req, res) => {
         // Format response
         const formattedJadwal = {
             id: newJadwal.id,
-            tanggal_jadwal: formatDate(newJadwal.tanggal_jadwal),
+            hari: newJadwal.hari,
             jam_mulai: formatTime(newJadwal.jam_mulai),
             jam_selesai: formatTime(newJadwal.jam_selesai),
             jam_lengkap: `${formatTime(newJadwal.jam_mulai)} - ${formatTime(newJadwal.jam_selesai)}`,
@@ -415,13 +414,21 @@ const createJadwal = async (req, res) => {
 const updateJadwal = async (req, res) => {
     try {
         const { id } = req.params;
-        const { tanggal_jadwal, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
+        const { hari, kelas_id, mapel_id, guru_id, jam_mulai, jam_selesai } = req.body;
 
         // Validasi input 
-        if (!tanggal_jadwal || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
+        if (!hari || !kelas_id || !mapel_id || !guru_id || !jam_mulai || !jam_selesai) {
             return res.status(400).json({
                 success: false,
                 message: "Semua field harus terisi"
+            });
+        }
+
+        // Validasi hari
+        if (!validateHari(hari)) {
+            return res.status(400).json({
+                success: false,
+                message: "Hari tidak valid (gunakan: SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU)"
             });
         }
 
@@ -482,12 +489,18 @@ const updateJadwal = async (req, res) => {
             });
         }
 
-        // konversi tanggal dan jam menjadi format ISO 
-        const tanggalJadwalDate = new Date(tanggal_jadwal);
-        const jamMulaiDate = new Date(`${tanggal_jadwal}T${jam_mulai}:00`);
-        const jamSelesaiDate = new Date(`${tanggal_jadwal}T${jam_selesai}:00`);
+        // Konversi jam ke format Time
+        const jamMulaiTime = `${jam_mulai}:00`;
+        const jamSelesaiTime = `${jam_selesai}:00`;
 
-        if (jamSelesaiDate <= jamMulaiDate) {
+        // Validasi jam selesai harus setelah jam mulai
+        const [jamMulaiHour, jamMulaiMinute] = jam_mulai.split(':').map(Number);
+        const [jamSelesaiHour, jamSelesaiMinute] = jam_selesai.split(':').map(Number);
+        
+        const totalMulai = jamMulaiHour * 60 + jamMulaiMinute;
+        const totalSelesai = jamSelesaiHour * 60 + jamSelesaiMinute;
+
+        if (totalSelesai <= totalMulai) {
             return res.status(400).json({
                 success: false,
                 message: "Jam selesai harus setelah jam mulai"
@@ -499,32 +512,32 @@ const updateJadwal = async (req, res) => {
             prisma.jadwal.findFirst({
                 where: {
                     kelas_id: parseInt(kelas_id),
-                    tanggal_jadwal: tanggalJadwalDate,
+                    hari: hari.toUpperCase(),
                     deleted_at: null,
                     NOT: { id: parseInt(id) },
                     OR: [
                         {
                             AND: [
-                                { jam_mulai: { lte: jamMulaiDate } },
-                                { jam_selesai: { gt: jamMulaiDate } }
+                                { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                                { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }
                             ]
                         },
                         {
                             AND: [
-                                { jam_mulai: { lt: jamSelesaiDate } },
-                                { jam_selesai: { gte: jamSelesaiDate } }
+                                { jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } },
+                                { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                             ]
                         },
                         {
                             AND: [
-                                { jam_mulai: { gte: jamMulaiDate } },
-                                { jam_selesai: { lte: jamSelesaiDate } }
+                                { jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                                { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                             ]
                         },
                         {
                             AND: [
-                                { jam_mulai: { lte: jamMulaiDate } },
-                                { jam_selesai: { gte: jamSelesaiDate } }
+                                { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                                { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                             ]
                         }
                     ]
@@ -533,32 +546,32 @@ const updateJadwal = async (req, res) => {
             prisma.jadwal.findFirst({
                 where: {
                     guru_id: parseInt(guru_id),
-                    tanggal_jadwal: tanggalJadwalDate,
+                    hari: hari.toUpperCase(),
                     deleted_at: null,
                     NOT: { id: parseInt(id) },
                     OR: [
                         {
                             AND: [
-                                { jam_mulai: { lte: jamMulaiDate } },
-                                { jam_selesai: { gt: jamMulaiDate } }
+                                { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                                { jam_selesai: { gt: new Date(`1970-01-01T${jamMulaiTime}`) } }
                             ]
                         },
                         {
                             AND: [
-                                { jam_mulai: { lt: jamSelesaiDate } },
-                                { jam_selesai: { gte: jamSelesaiDate } }
+                                { jam_mulai: { lt: new Date(`1970-01-01T${jamSelesaiTime}`) } },
+                                { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                             ]
                         },
                         {
                             AND: [
-                                { jam_mulai: { gte: jamMulaiDate } },
-                                { jam_selesai: { lte: jamSelesaiDate } }
+                                { jam_mulai: { gte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                                { jam_selesai: { lte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                             ]
                         },
                         {
                             AND: [
-                                { jam_mulai: { lte: jamMulaiDate } },
-                                { jam_selesai: { gte: jamSelesaiDate } }
+                                { jam_mulai: { lte: new Date(`1970-01-01T${jamMulaiTime}`) } },
+                                { jam_selesai: { gte: new Date(`1970-01-01T${jamSelesaiTime}`) } }
                             ]
                         }
                     ]
@@ -586,12 +599,12 @@ const updateJadwal = async (req, res) => {
                 id: parseInt(id)
             },
             data: {
-                tanggal_jadwal: tanggalJadwalDate,
+                hari: hari.toUpperCase(),
                 kelas_id: parseInt(kelas_id),
                 mapel_id: parseInt(mapel_id),
                 guru_id: parseInt(guru_id),
-                jam_mulai: jamMulaiDate,
-                jam_selesai: jamSelesaiDate,
+                jam_mulai: new Date(`1970-01-01T${jamMulaiTime}`),
+                jam_selesai: new Date(`1970-01-01T${jamSelesaiTime}`),
                 updated_at: new Date()
             },
             include: {
@@ -621,7 +634,7 @@ const updateJadwal = async (req, res) => {
         // Format response
         const formattedJadwal = {
             id: updatedJadwal.id,
-            tanggal_jadwal: formatDate(updatedJadwal.tanggal_jadwal),
+            hari: updatedJadwal.hari,
             jam_mulai: formatTime(updatedJadwal.jam_mulai),
             jam_selesai: formatTime(updatedJadwal.jam_selesai),
             jam_lengkap: `${formatTime(updatedJadwal.jam_mulai)} - ${formatTime(updatedJadwal.jam_selesai)}`,
