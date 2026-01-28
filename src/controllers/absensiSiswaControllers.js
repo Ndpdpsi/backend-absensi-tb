@@ -1,8 +1,6 @@
 const prisma = require("../config/prisma");
 
-/**
- * Helper function untuk format waktu
- */
+// format tanggal dan waktu ke dalam format Indonesia
 const formatDateTime = (date) => {
   if (!date) return null;
   return new Date(date).toLocaleString('id-ID', {
@@ -38,6 +36,12 @@ const formatTime = (time) => {
   });
 };
 
+// get hari untuk validasi hari untuk tapin absensi
+const validateHari = (hari) => {
+    const validHari = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+    return validHari[hari.getDay()];
+};
+
 // Tap In 
 const tapIn = async (req, res) => {
     try {
@@ -52,7 +56,7 @@ const tapIn = async (req, res) => {
         }
 
         // Cari RFID yang aktif
-        const rfid = await prisma.RFID.findFirst({
+        const rfid = await prisma.rFID.findFirst({
             where: {
                 uid_rfid,
                 is_active: true,
@@ -101,20 +105,14 @@ const tapIn = async (req, res) => {
             });
         }
 
+        // Dapatkan nama hari ini
+        const hariIni = validateHari(new Date());
+
         // Ambil jadwal pertama hari ini untuk kelas siswa
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-
-        const endOfDay = new Date();
-        endOfDay.setHours(23, 59, 59, 999);
-
         const jadwalPertama = await prisma.jadwal.findFirst({
             where: {
                 kelas_id: rfid.siswa.kelas.id,
-                tanggal_jadwal: {
-                    gte: startOfDay,
-                    lte: endOfDay
-                },
+                hari: hariIni,
                 deleted_at: null
             },
             orderBy: {
@@ -122,11 +120,10 @@ const tapIn = async (req, res) => {
             }
         });
 
-
         if (!jadwalPertama) {
             return res.status(404).json({
                 success: false,
-                message: "Tidak ada jadwal untuk hari ini"
+                message: `Tidak ada jadwal untuk hari ${hariIni}`
             });
         }
 
@@ -250,7 +247,7 @@ const tapOut = async (req, res) => {
         }
 
         // Cari RFID yang aktif
-        const rfid = await prisma.RFID.findFirst({
+        const rfid = await prisma.rFID.findFirst({
             where: {
                 uid_rfid,
                 is_active: true,
@@ -548,7 +545,7 @@ const getAbsensiById = async (req, res) => {
             keterangan: detail.keterangan,
             jadwal: {
                 id: detail.jadwal.id,
-                tanggal_jadwal: formatDate(detail.jadwal.tanggal_jadwal),
+                hari: detail.jadwal.hari,
                 jam_mulai: formatTime(detail.jadwal.jam_mulai),
                 jam_selesai: formatTime(detail.jadwal.jam_selesai),
                 mata_pelajaran: detail.jadwal.mata_pelajaran,
