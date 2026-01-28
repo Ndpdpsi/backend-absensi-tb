@@ -92,7 +92,8 @@ const createTahunAjaran = async (req, res) => {
 
         const newTahun = await prisma.Tahun.create({
             data: {
-                tahun_ajaran
+                tahun_ajaran,
+                is_active: true
             }
         });
 
