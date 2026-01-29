@@ -89,7 +89,7 @@ model OrangTua {
   id            Int    @id @default(autoincrement())
   nama_orangtua String @db.VarChar(255)
   nomor_telepon String @db.VarChar(15)
-  telegram_id   BigInt? @unique
+  telegram_id   String @db.VarChar(50) 
 
   siswa Siswa[]
 

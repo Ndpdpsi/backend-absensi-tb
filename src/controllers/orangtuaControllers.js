@@ -116,7 +116,7 @@ const getOrangTuaById = async (req, res) => {
 // menambahkan orang tua
 const createOrangTua = async (req, res) => {
     try {
-        const { nama_orangtua, nomor_telepon } = req.body;
+        const { nama_orangtua, nomor_telepon, telegram_id } = req.body;
 
         if (!nama_orangtua || !nomor_telepon) {
             return res.status(400).json({
@@ -147,10 +147,13 @@ const createOrangTua = async (req, res) => {
             });
         }
 
+        
+
         const newOrangTua = await prisma.orangTua.create({
             data: {
                 nama_orangtua,
                 nomor_telepon,
+                telegram_id
             }
         });
 
