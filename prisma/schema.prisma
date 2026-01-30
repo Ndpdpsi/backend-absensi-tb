@@ -44,7 +44,7 @@ model User {
   password String
   role     Role
 
-  guru_id Int? @unique
+  guru_id Int?  @unique
   guru    Guru? @relation(fields: [guru_id], references: [id], onDelete: SetNull)
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
@@ -55,8 +55,6 @@ model User {
   @@map("users")
 }
 
-
-
 model Siswa {
   id            String   @id @default(uuid()) @db.Uuid
   NISN          String   @unique
@@ -66,11 +64,12 @@ model Siswa {
   gender        Gender
   tanggal_lahir DateTime @db.Date
   nomor_telepon String
+  
   orangtua_id   Int?
   kelas_id      Int?
 
-  orang_tua OrangTua? @relation(fields: [orangtua_id], references: [id], onDelete: SetNull)
-  kelas     Kelas?    @relation(fields: [kelas_id], references: [id], onDelete: SetNull)
+  orang_tua OrangTua?      @relation(fields: [orangtua_id], references: [id], onDelete: SetNull)
+  kelas     Kelas?         @relation(fields: [kelas_id], references: [id], onDelete: SetNull)
   rfid      RFID[]
   absensi   AbsensiSiswa[]
 
@@ -84,12 +83,11 @@ model Siswa {
   @@map("siswa")
 }
 
-
 model OrangTua {
   id            Int    @id @default(autoincrement())
   nama_orangtua String @db.VarChar(255)
   nomor_telepon String @db.VarChar(15)
-  telegram_id   String @db.VarChar(50) 
+  telegram_id   String @db.VarChar(50)
 
   siswa Siswa[]
 
@@ -172,8 +170,8 @@ model DetailAbsensiSiswa {
 }
 
 model Guru {
-  id            Int    @id @default(autoincrement())
-  NIP           String @unique
+  id            Int       @id @default(autoincrement())
+  NIP           String    @unique
   nama          String
   nomor_telepon String
   alamat        String
@@ -190,7 +188,6 @@ model Guru {
 
   @@map("guru")
 }
-
 
 model Jadwal {
   id          Int      @id @default(autoincrement())
