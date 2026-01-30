@@ -1,4 +1,7 @@
 const prisma = require("../config/prisma");
+require('dotenv').config();
+
+
 
 // get all orang tua
 const getAllOrangTua = async (req, res) => {
@@ -116,7 +119,7 @@ const getOrangTuaById = async (req, res) => {
 // menambahkan orang tua
 const createOrangTua = async (req, res) => {
     try {
-        const { nama_orangtua, nomor_telepon, telegram_id } = req.body;
+        const { nama_orangtua, nomor_telepon } = req.body;
 
         if (!nama_orangtua || !nomor_telepon) {
             return res.status(400).json({
@@ -133,7 +136,7 @@ const createOrangTua = async (req, res) => {
             });
         }
 
-        const existingPhone = await prisma.orangTua.findFirst({
+        const existingPhone = await prisma.OrangTua.findFirst({
             where: {
                 nomor_telepon: nomor_telepon,
                 deleted_at: null
@@ -147,13 +150,11 @@ const createOrangTua = async (req, res) => {
             });
         }
 
-        
-
         const newOrangTua = await prisma.orangTua.create({
             data: {
                 nama_orangtua,
                 nomor_telepon,
-                telegram_id
+                telegram_id: process.env.TELEGRAM_ID ?? null
             }
         });
 
@@ -315,45 +316,10 @@ const deleteOrangTua = async (req, res) => {
     }
 };
 
-// Set telegram chat ID
-const setTelegramChatId = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { telegram_id } = req.body;
-
-        if (!telegram_id) {
-            return res.status(400).json({
-                success: false,
-                message: "Telegram chat ID harus terisi"
-            });
-        }
-
-        const updated = await prisma.orangTua.update({
-            where: { id: parseInt(id) },
-            data: { telegram_id }
-        });
-
-        return res.status(200).json({
-            success: true,
-            message: "Telegram chat ID berhasil diset",
-            data: updated
-        });
-
-    } catch (error) {
-        console.error("Error setting telegram chat ID:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Terjadi kesalahan pada server",
-            error: error.message
-        });
-    }
-};
-
 module.exports = {
     getAllOrangTua,
     getOrangTuaById,
     createOrangTua,
     updateOrangTua,
     deleteOrangTua,
-    setTelegramChatId
 };
