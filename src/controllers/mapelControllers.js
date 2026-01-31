@@ -93,6 +93,32 @@ const createMapel = async (req, res) => {
             });
         }
 
+        //  ceka apakah ada nama mapel yang sudah di soft delete
+
+        const checkDeletedMapel = await prisma.MataPelajaran.findFirst({
+            where: {
+                nama_mapel: nama_mapel
+            }
+        })
+
+        if (checkDeletedMapel && checkDeletedMapel.deleted_at) {
+            // restore mapel yang di soft delete
+            const restoredMapel = await prisma.MataPelajaran.update({
+                where: {
+                    id: checkDeletedMapel.id
+                },
+                data: {
+                    deleted_at: null
+                }
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Berhasil mengembalikan mata pelajaran yang dihapus",
+                data: restoredMapel
+            });
+        }
+
 
         // Buat data baru
         const newMapel = await prisma.MataPelajaran.create({

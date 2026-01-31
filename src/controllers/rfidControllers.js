@@ -2,26 +2,26 @@ const prisma = require("../config/prisma");
 
 // format tanggal dan waktu ke dalam format Indonesia
 const formatDateTime = (date) => {
-  if (!date) return null;
-  return new Date(date).toLocaleString('id-ID', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    timeZone: 'Asia/Jakarta'
-  });
+    if (!date) return null;
+    return new Date(date).toLocaleString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'Asia/Jakarta'
+    });
 };
 
 const formatDate = (date) => {
-  if (!date) return null;
-  return new Date(date).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Asia/Jakarta'
-  });
+    if (!date) return null;
+    return new Date(date).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta'
+    });
 };
 
 // get all
@@ -233,6 +233,32 @@ const createRFID = async (req, res) => {
                 message: "Siswa tidak ditemukan"
             });
         }
+
+        // cek apakah ada RFID yang sudah di soft delete dengan uid_rfid yang sama
+        const existingDeleteRFID = await prisma.RFID.findFirst({
+            where: {
+                uid_rfid,
+            }
+        });
+
+        if (existingDeleteRFID && existingDeleteRFID.deleted_at) {
+            // akan restore data yang sudah di soft delete
+            const restoredRFID = await prisma.RFID.update({
+                where: { id: existingDeleteRFID.id },
+                data: {
+                    siswa_id,
+                    is_active: true,
+                    deleted_at: null
+                }
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Berhasil mengembalikan data RFID yang dihapus",
+                data: restoredRFID
+            });
+        }
+
 
         // buat RFID baru
         const newRFID = await prisma.RFID.create({
@@ -469,7 +495,7 @@ const updateRFID = async (req, res) => {
 
 const deleteRFID = async (req, res) => {
     try {
-        const {id} = req.params;
+        const { id } = req.params;
 
         //  cek apakah RFID ada
         const existingRFID = await prisma.RFID.findFirst({
@@ -495,7 +521,7 @@ const deleteRFID = async (req, res) => {
         });
 
         return res.status(200).json({
-            success: true, 
+            success: true,
             message: "Berhasil menghapus data RFID"
         })
     } catch (error) {

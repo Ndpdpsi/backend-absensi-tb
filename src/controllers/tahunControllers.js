@@ -88,8 +88,33 @@ const createTahunAjaran = async (req, res) => {
             });
         }
 
-        // buat tahun ajaran baru
 
+        const checkDeletedTahun = await prisma.Tahun.findFirst({
+            where: {
+                tahun_ajaran
+            }
+        })
+
+        if (checkDeletedTahun && checkDeletedTahun.deleted_at ){
+            // restore tahun ajaran yang sudah di soft delete
+
+            const restoredTahun = await prisma.Tahun.update({
+                where: {
+                    id: checkDeletedTahun.id
+                },
+                data: {
+                    deleted_at: null
+                }
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "berhasil mengembalikan tahun ajaran yang dihapus",
+                data: restoredTahun
+            })
+        }
+        
+        // buat tahun ajaran baru
         const newTahun = await prisma.Tahun.create({
             data: {
                 tahun_ajaran,

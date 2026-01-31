@@ -89,6 +89,30 @@ const createJurusan = async (req, res) => {
             });
         }
 
+        // cek apakah jurusan sebelumnya sudah ada apa belum
+        const checkDeletedJurusan = await prisma.jurusan.findFirst({
+            where: {
+                nama_jurusan: nama_jurusan,
+            }
+        });
+
+        if (checkDeletedJurusan && checkDeletedJurusan.deleted_at) {
+            const restoredJurusan = await prisma.jurusan.update({
+                where: {
+                    id: checkDeletedJurusan.id
+                },
+                data: {
+                    deleted_at: null
+                }
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Berhasil mengembalikan jurusan yang dihapus",
+                data: restoredJurusan
+            });
+        }
+
         // Buat data baru
         const newJurusan = await prisma.jurusan.create({
             data: {

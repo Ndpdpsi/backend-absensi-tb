@@ -128,6 +128,7 @@ const createOrangTua = async (req, res) => {
             });
         }
 
+        // validasi format nomor telepon
         const phoneRegex = /^08[0-9]{8,11}$/;
         if (!phoneRegex.test(nomor_telepon)) {
             return res.status(400).json({
@@ -136,6 +137,7 @@ const createOrangTua = async (req, res) => {
             });
         }
 
+        // Cek duplikasi nomor telepon
         const existingPhone = await prisma.orangTua.findFirst({
             where: {
                 nomor_telepon: nomor_telepon,
@@ -150,6 +152,23 @@ const createOrangTua = async (req, res) => {
             });
         }
 
+
+        const checkDeletedOrangTua = await prisma.orangTua.findFirst({
+            where: {
+                nama_orangtua: nama_orangtua
+            }
+        });
+
+        if (checkDeletedOrangTua && checkDeletedOrangTua.deleted_at) {
+            // restore orang tua yang sudah di soft delete
+            return res.status(200).json({
+                success: true,
+                message: "Berhasil mengembalikan data orang tua yang sudah dihapus",
+                data: checkDeletedOrangTua
+            })
+        }
+
+        // create orang tua
         const newOrangTua = await prisma.orangTua.create({
             data: {
                 nama_orangtua,
