@@ -20,6 +20,7 @@ var rfidRoutes = require('./src/routes/rfidRoutes')
 var siswaRoutes = require('./src/routes/siswaRoutes');
 var absensiSiswaRoutes = require('./src/routes/absensiSiswaRoutes');
 var detailAbsensi = require('./src/routes/detailAbsensiRoutes')
+var users = require('./src/routes/usersRoutes');
 
 
 var app = express();
@@ -48,6 +49,7 @@ app.use('/api/jurusan', jurusanRoutes);
 app.use('/api/rfid', rfidRoutes);
 app.use('/api/absensi-siswa', absensiSiswaRoutes);
 app.use('/api/detail-absensi', detailAbsensi)
+app.use('/api/users', users);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
