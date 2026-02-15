@@ -14,16 +14,6 @@ const formatDateTime = (date) => {
     });
 };
 
-const formatDate = (date) => {
-    if (!date) return null;
-    return new Date(date).toLocaleDateString('id-ID', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'Asia/Jakarta'
-    });
-};
-
 // get all
 const getAllRfid = async (req, res) => {
     try {
@@ -74,7 +64,7 @@ const getAllRfid = async (req, res) => {
         ])
 
         // Format response
-        const formattedData = data.map(rfid => ({
+        const formatedData = data.map(rfid => ({
             id: rfid.id,
             uid_rfid: rfid.uid_rfid,
             siswa_id: rfid.siswa_id,
@@ -87,7 +77,7 @@ const getAllRfid = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Berhasil mengambil seluruh data RFID siswa",
-            data: formattedData,
+            data: formatedData,
             pagination: {
                 page,
                 limit,
@@ -105,6 +95,46 @@ const getAllRfid = async (req, res) => {
     }
 }
 
+// laod for client
+const loadAllRfid = async (req, res) => {
+    try {
+
+        const data = await prisma.RFID.findMany({
+            where: {
+                deleted_at: null,
+                is_active: true
+            },
+            select: {
+                uid_rfid: true,
+                siswa: {
+                    select: {
+                        nama: true
+                    }
+                }
+            }
+        });
+
+        // format supaya clean
+        const formatedData = data.map(item => ({
+            uid_rfid: item.uid_rfid,
+            nama: item.siswa?.nama || null
+        }));
+
+        return res.status(200).json({
+            success: true,
+            message: "Berhasil mengambil data RFID untuk cache",
+            data: formatedData
+        });
+
+    } catch (error) {
+        console.error("Error getting RFID:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
 // get by id 
 const getRfidById = async (req, res) => {
     try {
@@ -150,7 +180,7 @@ const getRfidById = async (req, res) => {
         }
 
         // Format response
-        const formattedRfid = {
+        const formatedRfid = {
             id: rfid.id,
             uid_rfid: rfid.uid_rfid,
             siswa_id: rfid.siswa_id,
@@ -163,7 +193,7 @@ const getRfidById = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Berhasil mendapatkan data RFID",
-            data: formattedRfid
+            data: formatedRfid
         })
     } catch (error) {
         console.error('Error getting by id RFID', error)
@@ -295,7 +325,7 @@ const createRFID = async (req, res) => {
         })
 
         // Format response
-        const formattedRFID = {
+        const formatedRFID = {
             id: newRFID.id,
             uid_rfid: newRFID.uid_rfid,
             siswa_id: newRFID.siswa_id,
@@ -308,7 +338,7 @@ const createRFID = async (req, res) => {
         return res.status(201).json({
             success: true,
             message: "Berhasil membuat data RFID baru",
-            data: formattedRFID
+            data: formatedRFID
         })
     } catch (error) {
         console.error("Error creating RFID:", error)
@@ -465,7 +495,7 @@ const updateRFID = async (req, res) => {
         });
 
         // Format response
-        const formattedRFID = {
+        const formatedRFID = {
             id: updatedRFID.id,
             uid_rfid: updatedRFID.uid_rfid,
             siswa_id: updatedRFID.siswa_id,
@@ -478,7 +508,7 @@ const updateRFID = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Berhasil mengupdate data RFID",
-            data: formattedRFID
+            data: formatedRFID
         })
     } catch (error) {
         console.error("Error updating RFID:", error)
@@ -536,6 +566,7 @@ const deleteRFID = async (req, res) => {
 
 module.exports = {
     getAllRfid,
+    loadAllRfid,
     getRfidById,
     createRFID,
     updateRFID,

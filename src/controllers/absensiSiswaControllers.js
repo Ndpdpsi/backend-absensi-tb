@@ -58,7 +58,7 @@ const tapIn = async (req, res) => {
             });
         }
 
-        // Cari RFID yang aktif - INCLUDE ORANG TUA
+        // Cari RFID yang aktif 
         const rfid = await prisma.rFID.findFirst({
             where: {
                 uid_rfid,
