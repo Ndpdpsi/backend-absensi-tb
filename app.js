@@ -39,19 +39,19 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // routes
 app.use('/', indexRouter);
-app.use('/api/siswa', siswaRoutes);
-app.use('/api/tahun-ajaran', tahunRoutes);
-app.use('/api/mata-pelajaran', mapelRoutes);
-app.use('/api/guru', guruRoutes);
-app.use('/api/orang-tua', orangTuaRoutes)
-app.use('/api/kelas', kelasRoutes)
-app.use('/api/jadwal', jadwalRoutes)
-app.use('/api/jurusan', jurusanRoutes);
-app.use('/api/rfid', rfidRoutes);
-app.use('/api/absensi-siswa', absensiSiswaRoutes);
-app.use('/api/detail-absensi', detailAbsensi)
-app.use('/api/users', users);
-app.use('/api/auth', auth);
+app.use('/api/v1/siswa', siswaRoutes);
+app.use('/api/v1/tahun-ajaran', tahunRoutes);
+app.use('/api/v1/mata-pelajaran', mapelRoutes);
+app.use('/api/v1/guru', guruRoutes);
+app.use('/api/v1/orang-tua', orangTuaRoutes)
+app.use('/api/v1/kelas', kelasRoutes)
+app.use('/api/v1/jadwal', jadwalRoutes)
+app.use('/api/v1/jurusan', jurusanRoutes);
+app.use('/api/v1/rfid', rfidRoutes);
+app.use('/api/v1/absensi-siswa', absensiSiswaRoutes);
+app.use('/api/v1/detail-absensi', detailAbsensi)
+app.use('/api/v1/users', users);
+app.use('/api/v1/auth', auth);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
