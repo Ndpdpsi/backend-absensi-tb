@@ -169,7 +169,6 @@ const tapIn = async (req, res) => {
                 siswa: {
                     select: {
                         nama: true,
-                        NISN: true,
                         kelas: {
                             select: {
                                 kelas: true,
@@ -333,7 +332,6 @@ const tapOut = async (req, res) => {
                 siswa: {
                     select: {
                         nama: true,
-                        NISN: true,
                         kelas: {
                             select: {
                                 kelas: true,
