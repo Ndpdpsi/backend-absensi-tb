@@ -73,7 +73,7 @@ const tapIn = async (req, res) => {
                                 jurusan: true
                             }
                         },
-                        orang_tua: true 
+                        orang_tua: true
                     }
                 }
             }
@@ -190,19 +190,16 @@ const tapIn = async (req, res) => {
         });
 
         // kirim notifikasi telegram
-        if (rfid.siswa.orang_tua && rfid.siswa.orang_tua.telegram_id) {
+        if (rfid.siswa.kelas && rfid.siswa.kelas.telegram_group_id) {
             const notifData = {
                 nama: rfid.siswa.nama,
                 kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan.nama_jurusan}`,
                 status_tapin: statusTapIn,
                 tap_in: formatTime(tapInTime),
                 tanggal: formatDate(today),
-                jadwal_pertama: jadwalPertama.mata_pelajaran.nama_mapel,
-                jam_mulai: formatTime(jadwalPertama.jam_mulai)
             };
 
-            // Kirim async (tidak menunggu response)
-            sendTapInNotification(rfid.siswa.orang_tua.telegram_id, notifData)
+            sendTapInNotification(rfid.siswa.kelas.telegram_group_id, notifData)
                 .catch(error => {
                     console.error('Failed to send Telegram notification:', error);
                 });
@@ -270,7 +267,7 @@ const tapOut = async (req, res) => {
                                 jurusan: true
                             }
                         },
-                        orang_tua: true 
+                        orang_tua: true
                     }
                 }
             }
@@ -353,15 +350,15 @@ const tapOut = async (req, res) => {
         });
 
         // kirim notifikasi telegram
-        if (rfid.siswa.orang_tua && rfid.siswa.orang_tua.telegram_id) {
+        if (rfid.siswa.kelas && rfid.siswa.kelas.telegram_group_id) {
             const notifData = {
                 nama: rfid.siswa.nama,
                 kelas: `${rfid.siswa.kelas.kelas} ${rfid.siswa.kelas.jurusan.nama_jurusan}`,
-                tap_out: formatTime(tapOutTime),
-                tanggal: formatDate(today)
+                tap_out: formatTime(tapOutTime),     
+                tanggal: formatDate(today),
             };
 
-            sendTapOutNotification(rfid.siswa.orang_tua.telegram_id, notifData)
+            sendTapOutNotification(rfid.siswa.kelas.telegram_group_id, notifData)   
                 .catch(error => {
                     console.error('Failed to send Telegram notification:', error);
                 });

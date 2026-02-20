@@ -87,7 +87,6 @@ model OrangTua {
   id            Int    @id @default(autoincrement())
   nama_orangtua String @db.VarChar(255)
   nomor_telepon String @db.VarChar(15)
-  telegram_id   String @db.VarChar(50)
 
   siswa Siswa[]
 
@@ -96,7 +95,6 @@ model OrangTua {
   deleted_at DateTime? @db.Timestamptz(6)
 
   @@index([deleted_at])
-  @@index([telegram_id])
   @@map("orang_tua")
 }
 
@@ -233,6 +231,7 @@ model Kelas {
   kelas           String @db.VarChar(10)
   jurusan_id      Int
   tahun_ajaran_id Int
+  telegram_group_id String? @db.VarChar(50)
 
   jurusan Jurusan  @relation(fields: [jurusan_id], references: [id], onDelete: Restrict)
   tahun   Tahun    @relation(fields: [tahun_ajaran_id], references: [id], onDelete: Restrict)

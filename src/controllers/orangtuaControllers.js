@@ -173,7 +173,6 @@ const createOrangTua = async (req, res) => {
             data: {
                 nama_orangtua,
                 nomor_telepon,
-                telegram_id: process.env.TELEGRAM_ID ?? null
             }
         });
 
