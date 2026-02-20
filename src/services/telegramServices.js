@@ -1,23 +1,27 @@
 const TelegramBot = require('node-telegram-bot-api');
 const prisma = require('../config/prisma');
 
+// cek token
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   console.error('TELEGRAM_BOT_TOKEN tidak ada');
   process.exit(1);
 }
 
+// init bot
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, {
   polling: true
 });
 
 console.log('Telegram bot berjalan');
 
-// ketika orang tua mengirim pesan pertama (apa saja)
-bot.on('message', async (msg) => {
-  const chatId = msg.chat.id;
 
-  // jika sudah kirim contact, biarkan handler contact yang jalan
-  if (msg.contact) return;
+
+// COMMAND /start (PRIVATE ONLY)
+bot.onText(/\/start/, async (msg) => {
+
+  if (msg.chat.type !== 'private') return;
+
+  const chatId = msg.chat.id;
 
   await bot.sendMessage(
     chatId,
@@ -34,8 +38,13 @@ bot.on('message', async (msg) => {
   );
 });
 
-// terima nomor telepon
+
+
+// TERIMA CONTACT
 bot.on('contact', async (msg) => {
+
+  if (msg.chat.type !== 'private') return;
+
   const chatId = msg.chat.id;
   let phone = msg.contact.phone_number;
 
@@ -45,6 +54,7 @@ bot.on('contact', async (msg) => {
   }
 
   try {
+
     const orangTua = await prisma.orangTua.findFirst({
       where: {
         nomor_telepon: phone,
@@ -59,75 +69,75 @@ bot.on('contact', async (msg) => {
       );
     }
 
+    // simpan telegram_id
     await prisma.orangTua.update({
       where: { id: orangTua.id },
       data: {
-        telegram_id: BigInt(chatId)
+        telegram_id: String(chatId)
       }
     });
 
     await bot.sendMessage(
       chatId,
-      'Notifikasi absensi berhasil diaktifkan.'
+      'Notifikasi absensi berhasil diaktifkan.',
+      {
+        reply_markup: { remove_keyboard: true }
+      }
     );
+
   } catch (error) {
     console.error(error);
-    await bot.sendMessage(
-      chatId,
-      'Terjadi kesalahan server.'
-    );
+    await bot.sendMessage(chatId, 'Terjadi kesalahan server.');
   }
 });
 
-// kirim notifikasi tap in
-const sendTapInNotification = async (chatId, data) => {
-  const {
-    nama,
-    kelas,
-    tanggal,
-    tap_in,
-    status_tapin
-  } = data;
-
-  const statusText = status_tapin === 'TEPAT_WAKTU' ? 'Tepat Waktu' : 'Terlambat';
-  const keterangan = status_tapin === 'TEPAT_WAKTU'
-    ? 'Siswa datang tepat waktu'
-    : 'Siswa datang terlambat';
-
-  const message =
-    `NOTIFIKASI TAP IN
-
-Nama: ${nama}
-Kelas: ${kelas}
-Tanggal: ${tanggal}
-Waktu: ${tap_in}
-Status: ${statusText}
-
-${keterangan}`;
 
 
-  await bot.sendMessage(chatId, message);
+// KIRIM TAP IN KE ORANG TUA
+const sendTapInNotification = async (telegramId, data) => {
+
+  if (!telegramId) return;
+
+  const message = `
+📢 NOTIFIKASI TAP IN
+
+👤 Nama: ${data.nama}
+🏫 Kelas: ${data.kelas}
+📅 Tanggal: ${data.tanggal}
+⏰ Waktu: ${data.tap_in}
+📌 Status: ${data.status_tapin === 'TEPAT_WAKTU' ? 'Tepat Waktu' : 'Terlambat'}
+`;
+
+  try {
+    await bot.sendMessage(String(telegramId), message);
+  } catch (error) {
+    console.error('Error kirim tap in:', error);
+  }
 };
 
-// kirim notifikasi tap out
-const sendTapOutNotification = async (chatId, data) => {
-  const {
-    nama,
-    kelas,
-    tanggal,
-    tap_out
-  } = data;
 
-  const message =
-    `NOTIFIKASI TAP OUT
 
-Nama: ${nama}
-Kelas: ${kelas}
-Tanggal: ${tanggal}
-Waktu: ${tap_out}`;
+// KIRIM TAP OUT KE ORANG TUA
+const sendTapOutNotification = async (telegramId, data) => {
 
-  await bot.sendMessage(chatId, message);
+  if (!telegramId) return;
+
+  const message = `
+📢 NOTIFIKASI TAP OUT
+
+👤 Nama: ${data.nama}
+🏫 Kelas: ${data.kelas}
+📅 Tanggal: ${data.tanggal}
+⏰ Waktu: ${data.tap_out}
+`;
+
+  try {
+    await bot.sendMessage(String(telegramId), message);
+  } catch (error) {
+    console.error('Error kirim tap out:', error);
+  }
 };
+
 
 module.exports = {
   bot,
