@@ -21,7 +21,6 @@ const getAllOrangTua = async (req, res) => {
                     select: {
                         id: true,
                         nama: true,
-                        NISN: true,
                         kelas: {
                             select: {
                                 kelas: true,
@@ -70,8 +69,6 @@ const getOrangTuaById = async (req, res) => {
                     select: {
                         id: true,
                         nama: true,
-                        NISN: true,
-                        NIPD: true,
                         alamat: true,
                         nomor_telepon: true,
                         kelas: {

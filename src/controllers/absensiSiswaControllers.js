@@ -438,7 +438,6 @@ const getAllAbsensi = async (req, res) => {
                     siswa: {
                         select: {
                             nama: true,
-                            NISN: true,
                             kelas: {
                                 select: {
                                     kelas: true,
@@ -516,7 +515,6 @@ const getAbsensiById = async (req, res) => {
                 siswa: {
                     select: {
                         nama: true,
-                        NISN: true,
                         kelas: {
                             select: {
                                 kelas: true,
@@ -646,7 +644,6 @@ const getLaporanHarian = async (req, res) => {
                 siswa: {
                     select: {
                         nama: true,
-                        NISN: true,
                         kelas: {
                             select: {
                                 kelas: true,
@@ -757,7 +754,6 @@ const updateAbsensi = async (req, res) => {
                 siswa: {
                     select: {
                         nama: true,
-                        NISN: true,
                         kelas: {
                             select: {
                                 kelas: true,

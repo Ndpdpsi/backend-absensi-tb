@@ -39,7 +39,6 @@ const getAllRfid = async (req, res) => {
                         select: {
                             id: true,
                             nama: true,
-                            NISN: true,
                             kelas: {
                                 select: {
                                     kelas: true,
@@ -150,7 +149,6 @@ const getRfidById = async (req, res) => {
                     select: {
                         id: true,
                         nama: true,
-                        NISN: true,
                         kelas: {
                             select: {
                                 kelas: true,
@@ -302,7 +300,6 @@ const createRFID = async (req, res) => {
                     select: {
                         id: true,
                         nama: true,
-                        NISN: true,
                         kelas: {
                             select: {
                                 kelas: true,
@@ -472,7 +469,6 @@ const updateRFID = async (req, res) => {
                     select: {
                         id: true,
                         nama: true,
-                        NISN: true,
                         kelas: {
                             select: {
                                 kelas: true,
