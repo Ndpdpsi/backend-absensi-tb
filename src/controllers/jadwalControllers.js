@@ -1,43 +1,7 @@
 const prisma = require("../config/prisma");
+const { formatDateTime, formatTime, validateTimeFormat, validateHari  } = require("../helper/date");
 
 
-// format tanggal dan waktu ke dalam format Indonesia
-const formatDateTime = (date) => {
-  if (!date) return null;
-  return new Date(date).toLocaleString('id-ID', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    timeZone: 'Asia/Jakarta'
-  });
-};
-
-const formatTime = (time) => {
-  if (!time) return null;
-  if (typeof time === 'string') {
-    return time.substring(0, 5);
-  }
-  return new Date(time).toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Jakarta'
-  });
-};
-
-// Validasi format waktu HH:MM
-const validateTimeFormat = (time) => {
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    return timeRegex.test(time);
-};
-
-// Validasi hari
-const validateHari = (hari) => {
-    const validHari = ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    return validHari.includes(hari.toUpperCase());
-};
 
 // get all jadwal
 const getAllJadwal = async (req, res) => {
