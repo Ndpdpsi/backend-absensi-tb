@@ -33,16 +33,22 @@ enum Hari {
   SABTU
 }
 
-enum Role {
-  ADMIN
-  GURU
+model Role {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  users User[]
+
+  @@map("roles")
 }
 
 model User {
   id       String @id @default(uuid()) @db.Uuid
   email    String @unique
   password String
-  role     Role
+
+  role_id Int?
+  role    Role? @relation(fields: [role_id], references: [id])
 
   guru_id Int?  @unique
   guru    Guru? @relation(fields: [guru_id], references: [id], onDelete: SetNull)
@@ -64,9 +70,9 @@ model Siswa {
   gender        Gender
   tanggal_lahir DateTime @db.Date
   nomor_telepon String
-  
-  orangtua_id   Int?
-  kelas_id      Int?
+
+  orangtua_id Int?
+  kelas_id    Int?
 
   orang_tua OrangTua?      @relation(fields: [orangtua_id], references: [id], onDelete: SetNull)
   kelas     Kelas?         @relation(fields: [kelas_id], references: [id], onDelete: SetNull)
@@ -227,10 +233,10 @@ model MataPelajaran {
 }
 
 model Kelas {
-  id              Int    @id @default(autoincrement())
-  kelas           String @db.VarChar(10)
-  jurusan_id      Int
-  tahun_ajaran_id Int
+  id                Int     @id @default(autoincrement())
+  kelas             String  @db.VarChar(10)
+  jurusan_id        Int
+  tahun_ajaran_id   Int
   telegram_group_id String? @db.VarChar(50)
 
   jurusan Jurusan  @relation(fields: [jurusan_id], references: [id], onDelete: Restrict)
