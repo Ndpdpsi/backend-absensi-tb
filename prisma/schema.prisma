@@ -151,14 +151,14 @@ model AbsensiSiswa {
 model DetailAbsensiSiswa {
   id         Int           @id @default(autoincrement())
   absensi_id Int
-  jadwal_id  Int
+  jadwal_id  Int?
   guru_id    Int
   status     StatusAbsensi
   jam_absen  DateTime      @db.Timestamptz(6)
   keterangan String?       @db.Text
 
   absensi AbsensiSiswa @relation(fields: [absensi_id], references: [id], onDelete: Cascade)
-  jadwal  Jadwal       @relation(fields: [jadwal_id], references: [id], onDelete: Restrict)
+  jadwal  Jadwal?       @relation(fields: [jadwal_id], references: [id], onDelete: Restrict)
   guru    Guru         @relation(fields: [guru_id], references: [id], onDelete: Restrict)
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)

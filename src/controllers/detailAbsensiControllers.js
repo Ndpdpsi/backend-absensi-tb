@@ -5,7 +5,7 @@ const { formatDate, formatTime, formatDateTime, validateHari } = require("../hel
 
 const getActiveJadwalGuru = async (guru_id) => {
     const now = new Date();
-    const hari = getDayName(now);
+    const hari = validateHari(now);
 
     return prisma.jadwal.findFirst({
         where: {
@@ -27,12 +27,6 @@ const getActiveJadwalGuru = async (guru_id) => {
     });
 };
 
-
-// Helper untuk mendapatkan nama hari
-const getDayName = (date) => {
-    const days = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    return days[date.getDay()];
-};
 
 // absensi untuk guru
 const absensiByGuru = async (req, res) => {
@@ -400,7 +394,7 @@ const getRekapAbsensiKelas = async (req, res) => {
 
         const targetDate = new Date(tanggal);
         targetDate.setHours(0, 0, 0, 0);
-        const hari = getDayName(targetDate);
+        const hari = validateHari(targetDate);
 
         // ambil kelas
         const kelas = await prisma.kelas.findFirst({
@@ -1352,6 +1346,281 @@ const deleteDetailAbsensi = async (req, res) => {
     }
 };
 
+// pratinjau walas
+
+const pratinjauWalas = async (req, res) => {
+    try {
+        const { kelas_id, tanggal } = req.query;
+ 
+        if (!kelas_id || !tanggal) {
+            return res.status(400).json({
+                success: false,
+                message: "kelas_id dan tanggal wajib diisi"
+            });
+        }
+ 
+        const targetDate = new Date(tanggal);
+        targetDate.setHours(0, 0, 0, 0);
+ 
+        // ambil kelas beserta semua siswa + info RFID
+        const kelas = await prisma.kelas.findFirst({
+            where: {
+                id: parseInt(kelas_id),
+                deleted_at: null
+            },
+            include: {
+                jurusan: true,
+                tahun: true,
+                siswa: {
+                    where: { deleted_at: null },
+                    select: {
+                        id: true,
+                        nama: true,
+                        rfid: {
+                            where: { is_active: true, deleted_at: null },
+                            select: { uid_rfid: true }
+                        }
+                    }
+                }
+            }
+        });
+ 
+        if (!kelas) {
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan"
+            });
+        }
+ 
+        // ambil semua absensi siswa kelas ini pada tanggal tersebut
+        const absensiHariIni = await prisma.absensiSiswa.findMany({
+            where: {
+                tanggal: targetDate,
+                deleted_at: null,
+                siswa: {
+                    kelas_id: parseInt(kelas_id)
+                }
+            },
+            include: {
+                detail: {
+                    where: { deleted_at: null },
+                    select: {
+                        id: true,
+                        status: true,
+                        keterangan: true,
+                        jadwal_id: true
+                    }
+                }
+            }
+        });
+ 
+        // mapping per siswa
+        const daftarSiswa = kelas.siswa.map((siswa) => {
+            const punya_rfid = siswa.rfid.length > 0;
+            const absensi = absensiHariIni.find(a => a.siswa_id === siswa.id);
+            const sudah_tap = !!absensi?.tap_in;
+ 
+            // detail walas = detail yang jadwal_id null (bukan dari guru mapel)
+            const detailWalas = absensi?.detail?.find(d => !d.jadwal_id) || null;
+ 
+            // tentukan status rekomendasi
+            let status_rekomendasi = 'ALPHA';
+            if (detailWalas) status_rekomendasi = detailWalas.status;
+            else if (sudah_tap) status_rekomendasi = 'HADIR';
+ 
+            return {
+                siswa_id: siswa.id,
+                nama: siswa.nama,
+                punya_rfid,
+                tap_in: absensi ? formatTime(absensi.tap_in) : null,
+                tap_out: absensi ? formatTime(absensi.tap_out) : null,
+                status_tapin: absensi?.status_tapin || null,
+                sudah_diabsen: !!detailWalas,
+                status_saat_ini: detailWalas?.status || null,
+                keterangan: detailWalas?.keterangan || null,
+                detail_id: detailWalas?.id || null,
+                status_rekomendasi,
+                // kategori untuk keperluan filter di frontend
+                kategori: !punya_rfid ? 'tanpa_rfid'
+                    : !sudah_tap ? 'belum_tap'
+                    : 'sudah_tap'
+            };
+        });
+ 
+        // statistik ringkas
+        const summary = {
+            total: daftarSiswa.length,
+            punya_rfid: daftarSiswa.filter(s => s.punya_rfid).length,
+            tanpa_rfid: daftarSiswa.filter(s => !s.punya_rfid).length,
+            sudah_tap: daftarSiswa.filter(s => s.tap_in).length,
+            belum_tap: daftarSiswa.filter(s => !s.tap_in).length,
+            sudah_diabsen: daftarSiswa.filter(s => s.sudah_diabsen).length
+        };
+ 
+        return res.status(200).json({
+            success: true,
+            message: "Berhasil mengambil daftar siswa untuk absensi walas",
+            data: {
+                kelas: {
+                    id: kelas.id,
+                    nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`,
+                    tahun_ajaran: kelas.tahun.tahun_ajaran
+                },
+                tanggal: formatDate(targetDate),
+                hari: validateHari(targetDate),
+                summary,
+                daftar_siswa: daftarSiswa
+            }
+        });
+ 
+    } catch (error) {
+        console.error("Error pratinjau walas:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
+ 
+
+// Absensi Manual walas
+const absensiManualWalas = async (req, res) => {
+    try {
+        const { walas_id, kelas_id, tanggal, data_absensi } = req.body;
+ 
+        if (!walas_id || !kelas_id || !tanggal || !data_absensi?.length) {
+            return res.status(400).json({
+                success: false,
+                message: "walas_id, kelas_id, tanggal, dan data_absensi wajib diisi"
+            });
+        }
+ 
+        // validasi status semua item — konsisten pakai StatusAbsensi dari Prisma
+        const statusTidakValid = data_absensi.find(
+            d => !Object.values(StatusAbsensi).includes(d.status)
+        );
+        if (statusTidakValid) {
+            return res.status(400).json({
+                success: false,
+                message: `Status tidak valid untuk siswa_id ${statusTidakValid.siswa_id}. Gunakan: HADIR, IZIN, SAKIT, atau ALPHA`
+            });
+        }
+ 
+        // validasi kelas ada
+        const kelas = await prisma.kelas.findFirst({
+            where: {
+                id: parseInt(kelas_id),
+                deleted_at: null
+            }
+        });
+ 
+        if (!kelas) {
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan"
+            });
+        }
+ 
+        const targetDate = new Date(tanggal);
+        targetDate.setHours(0, 0, 0, 0);
+ 
+        const results = [];
+ 
+        for (const item of data_absensi) {
+            // cek apakah sudah ada absensiSiswa hari ini
+            let absensi = await prisma.absensiSiswa.findFirst({
+                where: {
+                    siswa_id: item.siswa_id,
+                    tanggal: targetDate,
+                    deleted_at: null
+                }
+            });
+ 
+            // siswa belum tap / tidak punya RFID → buat absensiSiswa kosong
+            if (!absensi) {
+                absensi = await prisma.absensiSiswa.create({
+                    data: {
+                        siswa_id: item.siswa_id,
+                        tanggal: targetDate,
+                        tap_in: null,
+                        tap_out: null,
+                        status_tapin: null,
+                        rfid_id: null
+                    }
+                });
+            }
+ 
+            // cek apakah detail walas sudah ada (jadwal_id null = absensi walas)
+            const existingDetail = await prisma.detailAbsensiSiswa.findFirst({
+                where: {
+                    absensi_id: absensi.id,
+                    jadwal_id: null,
+                    deleted_at: null
+                }
+            });
+ 
+            if (existingDetail) {
+                // update saja kalau sudah ada
+                await prisma.detailAbsensiSiswa.update({
+                    where: { id: existingDetail.id },
+                    data: {
+                        status: item.status,
+                        keterangan: item.keterangan || null,
+                        updated_at: new Date()
+                    }
+                });
+ 
+                results.push({
+                    siswa_id: item.siswa_id,
+                    status: item.status,
+                    keterangan: item.keterangan || null,
+                    aksi: 'diperbarui'
+                });
+                continue;
+            }
+ 
+            // buat detail baru
+            await prisma.detailAbsensiSiswa.create({
+                data: {
+                    absensi_id: absensi.id,
+                    jadwal_id: null,
+                    guru_id: parseInt(walas_id),
+                    status: item.status,
+                    keterangan: item.keterangan || null,
+                    jam_absen: new Date()
+                }
+            });
+ 
+            results.push({
+                siswa_id: item.siswa_id,
+                status: item.status,
+                keterangan: item.keterangan || null,
+                aksi: 'dibuat'
+            });
+        }
+ 
+        return res.status(200).json({
+            success: true,
+            message: "Absensi manual berhasil disimpan",
+            data: {
+                total: results.length,
+                dibuat: results.filter(r => r.aksi === 'dibuat').length,
+                diperbarui: results.filter(r => r.aksi === 'diperbarui').length,
+                tanggal: formatDate(targetDate),
+                detail: results
+            }
+        });
+ 
+    } catch (error) {
+        console.error("Error absensi manual walas:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
 module.exports = {
     absensiByGuru,
     updateStatusAbsensiManual,
@@ -1361,5 +1630,7 @@ module.exports = {
     getRekapAbsensiByJadwal,
     GetRekapAbsensiKelasTahunan,
     GetRekapAbsensiKelasSemester,
+    pratinjauWalas,
+    absensiManualWalas,
     deleteDetailAbsensi
 };

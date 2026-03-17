@@ -6,6 +6,11 @@ router.post('/absensi-guru', detailAbsensi.absensiByGuru);
 router.put('/update-status', detailAbsensi.updateStatusAbsensiManual);
 router.delete('/:id', detailAbsensi.deleteDetailAbsensi);
 
+
+// Walas 
+router.get('/pratinjau-walas', detailAbsensi.pratinjauWalas);
+router.post('/absensi-walas', detailAbsensi.absensiManualWalas)
+
 // Rekap Siswa
 router.get('/rekap-siswa', detailAbsensi.getRekapAbsensiSiswa);
 router.get('/rekap-siswa/tahunan', detailAbsensi.getRekapAbsensiSiswaYearly);
