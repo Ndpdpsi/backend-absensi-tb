@@ -6,7 +6,8 @@ const getAllSiswa = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
-
+        
+        // mencari data yang tidak di hapus
         const whereCondition = {
             deleted_at: null
         };
@@ -158,7 +159,7 @@ const createSiswa = async (req, res) => {
         const {
             NISN,
             NIPD,
-            nama_siswa,
+            nama,
             alamat,
             gender,
             tanggal_lahir,
@@ -167,8 +168,8 @@ const createSiswa = async (req, res) => {
             orangtua_id
         } = req.body;
 
-        // Validasi input wajib 
-        if (!NISN || !NIPD || !nama_siswa || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
+        // Validasi input 
+        if (!NISN || !NIPD || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
             return res.status(400).json({
                 success: false,
                 message: "NISN, NIPD, nama siswa, alamat, gender, tanggal lahir, nomor telepon, dan kelas wajib diisi"
@@ -276,7 +277,7 @@ const createSiswa = async (req, res) => {
             data: {
                 NISN: NISN,
                 NIPD: NIPD,
-                nama_siswa,
+                nama,
                 alamat,
                 gender,
                 tanggal_lahir: tanggalLahirDate,
@@ -326,7 +327,7 @@ const updateSiswa = async (req, res) => {
         const {
             NISN,
             NIPD,
-            nama_siswa,
+            nama,
             alamat,
             gender,
             tanggal_lahir,
@@ -336,7 +337,7 @@ const updateSiswa = async (req, res) => {
         } = req.body;
 
         // Validasi input wajib - KELAS_ID WAJIB
-        if (!NISN || !NIPD || !nama_siswa || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
+        if (!NISN || !NIPD || !nama || !alamat || !gender || !tanggal_lahir || !nomor_telepon || !kelas_id) {
             return res.status(400).json({
                 success: false,
                 message: "NISN, NIPD, nama siswa, alamat, gender, tanggal lahir, nomor telepon, dan kelas wajib diisi"
@@ -467,7 +468,7 @@ const updateSiswa = async (req, res) => {
             data: {
                 NISN,
                 NIPD,
-                nama_siswa,
+                nama,
                 alamat,
                 gender,
                 tanggal_lahir: tanggalLahirDate,

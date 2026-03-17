@@ -138,6 +138,30 @@ const createGuru = async (req, res) => {
             });
         }
 
+        // cek apakah ada NIP guru yang sama dan ada soft delete
+        const checkDeletedGuru = await prisma.Guru.findFirst({
+            where: {
+                NIP: NIP
+            }
+        });
+
+        if (checkDeletedGuru && checkDeletedGuru.deleted_at) {
+            const restoredGuru = await prisma.Guru.update({
+                where: {
+                    id: checkDeletedGuru.id
+                },
+                data: {
+                    deleted_at: null
+                }
+            });
+            
+            return res.status(200).json({
+                success: true,
+                message: "berhasil mengembalikan data guru yang dihapus",
+                data: restoredGuru
+            });
+        }
+
         // buat data guru baru
         const newGuru = await prisma.Guru.create({
             data: {

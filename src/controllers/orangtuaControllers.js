@@ -1,9 +1,12 @@
 const prisma = require("../config/prisma");
+require('dotenv').config();
+
+
 
 // get all orang tua
 const getAllOrangTua = async (req, res) => {
     try {
-        const orangTua = await prisma.OrangTua.findMany({
+        const orangTua = await prisma.orangTua.findMany({
             where: {
                 deleted_at: null
             },
@@ -17,8 +20,7 @@ const getAllOrangTua = async (req, res) => {
                     },
                     select: {
                         id: true,
-                        nama_siswa: true,
-                        NISN: true,
+                        nama: true,
                         kelas: {
                             select: {
                                 kelas: true,
@@ -32,7 +34,7 @@ const getAllOrangTua = async (req, res) => {
                     }
                 }
             }
-        });
+        })
 
         return res.status(200).json({
             success: true,
@@ -54,7 +56,7 @@ const getOrangTuaById = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const orangTua = await prisma.OrangTua.findFirst({
+        const orangTua = await prisma.orangTua.findFirst({
             where: {
                 id: parseInt(id),
                 deleted_at: null
@@ -66,9 +68,7 @@ const getOrangTuaById = async (req, res) => {
                     },
                     select: {
                         id: true,
-                        nama_siswa: true,
-                        NISN: true,
-                        NIPD: true,
+                        nama: true,
                         alamat: true,
                         nomor_telepon: true,
                         kelas: {
@@ -118,7 +118,6 @@ const createOrangTua = async (req, res) => {
     try {
         const { nama_orangtua, nomor_telepon } = req.body;
 
-        // Validasi input
         if (!nama_orangtua || !nomor_telepon) {
             return res.status(400).json({
                 success: false,
@@ -126,17 +125,17 @@ const createOrangTua = async (req, res) => {
             });
         }
 
-        // Validasi format nomor telepon (08)
+        // validasi format nomor telepon
         const phoneRegex = /^08[0-9]{8,11}$/;
         if (!phoneRegex.test(nomor_telepon)) {
             return res.status(400).json({
                 success: false,
-                message: "Format nomor telepon tidak valid (gunakan format: 08xx atau +62xx)"
+                message: "Format nomor telepon tidak valid (gunakan format: 08xx)"
             });
         }
 
-        // Cek duplikasi nomor telepon (opsional, tergantung requirement)
-        const existingPhone = await prisma.OrangTua.findFirst({
+        // Cek duplikasi nomor telepon
+        const existingPhone = await prisma.orangTua.findFirst({
             where: {
                 nomor_telepon: nomor_telepon,
                 deleted_at: null
@@ -150,11 +149,27 @@ const createOrangTua = async (req, res) => {
             });
         }
 
-        // Buat data orang tua baru
-        const newOrangTua = await prisma.OrangTua.create({
+
+        const checkDeletedOrangTua = await prisma.orangTua.findFirst({
+            where: {
+                nama_orangtua: nama_orangtua
+            }
+        });
+
+        if (checkDeletedOrangTua && checkDeletedOrangTua.deleted_at) {
+            // restore orang tua yang sudah di soft delete
+            return res.status(200).json({
+                success: true,
+                message: "Berhasil mengembalikan data orang tua yang sudah dihapus",
+                data: checkDeletedOrangTua
+            })
+        }
+
+        // create orang tua
+        const newOrangTua = await prisma.orangTua.create({
             data: {
                 nama_orangtua,
-                nomor_telepon
+                nomor_telepon,
             }
         });
 
@@ -197,7 +212,7 @@ const updateOrangTua = async (req, res) => {
         }
 
         // Cek apakah orang tua ada
-        const existingOrangTua = await prisma.OrangTua.findFirst({
+        const existingOrangTua = await prisma.orangTua.findFirst({
             where: {
                 id: parseInt(id),
                 deleted_at: null
@@ -212,7 +227,7 @@ const updateOrangTua = async (req, res) => {
         }
 
         // Cek duplikasi nomor telepon (kecuali data sendiri)
-        const duplicatePhone = await prisma.OrangTua.findFirst({
+        const duplicatePhone = await prisma.orangTua.findFirst({
             where: {
                 nomor_telepon: nomor_telepon,
                 deleted_at: null,
@@ -230,7 +245,7 @@ const updateOrangTua = async (req, res) => {
         }
 
         // Update data
-        const updatedOrangTua = await prisma.OrangTua.update({
+        const updatedOrangTua = await prisma.orangTua.update({
             where: {
                 id: parseInt(id)
             },
@@ -262,7 +277,7 @@ const deleteOrangTua = async (req, res) => {
         const { id } = req.params;
 
         // Cek apakah orang tua ada
-        const existingOrangTua = await prisma.OrangTua.findFirst({
+        const existingOrangTua = await prisma.orangTua.findFirst({
             where: {
                 id: parseInt(id),
                 deleted_at: null
@@ -293,7 +308,7 @@ const deleteOrangTua = async (req, res) => {
         }
 
         // Soft delete
-        await prisma.OrangTua.update({
+        await prisma.orangTua.update({
             where: {
                 id: parseInt(id)
             },
@@ -321,5 +336,5 @@ module.exports = {
     getOrangTuaById,
     createOrangTua,
     updateOrangTua,
-    deleteOrangTua
+    deleteOrangTua,
 };
