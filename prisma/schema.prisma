@@ -63,13 +63,13 @@ model User {
 
 model Siswa {
   id            String   @id @default(uuid()) @db.Uuid
-  NISN          String   @unique
-  NIPD          String   @unique
-  nama          String
-  alamat        String
+  NISN          String   @unique @db.VarChar(20)
+  NIPD          String   @unique @db.VarChar(20)
+  nama          String   @db.VarChar(255)
+  alamat        String   @db.Text
   gender        Gender
   tanggal_lahir DateTime @db.Date
-  nomor_telepon String
+  nomor_telepon String   @db.VarChar(15) 
 
   orangtua_id Int?
   kelas_id    Int?
@@ -79,9 +79,9 @@ model Siswa {
   rfid      RFID[]
   absensi   AbsensiSiswa[]
 
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime?
+  created_at DateTime  @default(now()) @db.Timestamptz(6) 
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)      
+  deleted_at DateTime? @db.Timestamptz(6)                 
 
   @@index([kelas_id])
   @@index([orangtua_id])
@@ -152,20 +152,20 @@ model DetailAbsensiSiswa {
   id         Int           @id @default(autoincrement())
   absensi_id Int
   jadwal_id  Int?
-  guru_id    Int
+  guru_id    Int?          
   status     StatusAbsensi
   jam_absen  DateTime      @db.Timestamptz(6)
   keterangan String?       @db.Text
 
   absensi AbsensiSiswa @relation(fields: [absensi_id], references: [id], onDelete: Cascade)
-  jadwal  Jadwal?       @relation(fields: [jadwal_id], references: [id], onDelete: Restrict)
-  guru    Guru         @relation(fields: [guru_id], references: [id], onDelete: Restrict)
+  jadwal  Jadwal?       @relation(fields: [jadwal_id], references: [id], onDelete: SetNull)
+  guru    Guru?         @relation(fields: [guru_id], references: [id], onDelete: SetNull)   
 
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
-  @@unique([absensi_id, jadwal_id])
+  @@index([absensi_id])
   @@index([jadwal_id])
   @@index([guru_id])
   @@index([status])
@@ -174,12 +174,12 @@ model DetailAbsensiSiswa {
 }
 
 model Guru {
-  id            Int       @id @default(autoincrement())
-  NIP           String    @unique
-  nama          String
-  nomor_telepon String
-  alamat        String
-  tanggal_lahir DateTime?
+  id            Int      @id @default(autoincrement())
+  NIP           String   @unique @db.VarChar(20)
+  nama          String   @db.VarChar(255)
+  nomor_telepon String   @db.VarChar(15)
+  alamat        String   @db.Text
+  tanggal_lahir DateTime @db.Date         
 
   user User?
 
@@ -190,6 +190,7 @@ model Guru {
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
   deleted_at DateTime? @db.Timestamptz(6)
 
+  @@index([deleted_at])
   @@map("guru")
 }
 
@@ -213,6 +214,7 @@ model Jadwal {
 
   @@unique([kelas_id, hari, jam_mulai])
   @@index([guru_id, hari])
+  @@index([hari, kelas_id])
   @@index([mapel_id])
   @@index([deleted_at])
   @@map("jadwal")
