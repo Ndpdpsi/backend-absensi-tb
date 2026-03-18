@@ -2,6 +2,11 @@ const prisma = require("../config/prisma");
 const { StatusAbsensi } = require("@prisma/client");
 const { formatDate, formatTime, formatDateTime, validateHari, parseTanggal, getTodayWIB } = require("../helper/date");
 
+const NAMA_BULAN = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+];
+
 const getActiveJadwalGuru = async (guru_id) => {
     const now = new Date();
     const hari = validateHari(now);
@@ -15,19 +20,20 @@ const getActiveJadwalGuru = async (guru_id) => {
             hari,
             jam_mulai: { lte: jamWIB },
             jam_selesai: { gte: jamWIB },
-            deleted_at: null,
+            deleted_at: null
         },
         include: {
             kelas: {
                 include: {
-                    siswa: { where: { deleted_at: null } },
-                },
-            },
-        },
+                    siswa: {
+                        where: { deleted_at: null }
+                    }
+                }
+            }
+        }
     });
 };
 
-// helper statistik
 const hitungStatistik = (detailArr) => {
     const total = detailArr.length;
     const hadir = detailArr.filter((d) => d.status === "HADIR").length;
@@ -40,17 +46,31 @@ const hitungStatistik = (detailArr) => {
         izin,
         sakit,
         alpha,
-        persentase_kehadiran: total > 0 ? ((hadir / total) * 100).toFixed(2) : "0.00",
+        persentase_kehadiran: total > 0 ? ((hadir / total) * 100).toFixed(2) : "0.00"
     };
 };
 
-// absensi guru
+const groupPerBulan = (detailArr, getTanggal) => {
+    return Array.from({ length: 12 }, (_, i) => {
+        const detailBulan = detailArr.filter((d) => {
+            const tgl = getTanggal(d);
+            return tgl && new Date(tgl).getUTCMonth() === i;
+        });
+        const stat = hitungStatistik(detailBulan);
+        return { bulan: i + 1, nama_bulan: NAMA_BULAN[i], ...stat };
+    });
+};
+
+// Absensi by guru
 const absensiByGuru = async (req, res) => {
     try {
         const { guru_id } = req.body;
 
         if (!guru_id) {
-            return res.status(400).json({ success: false, message: "guru_id wajib diisi" });
+            return res.status(400).json({
+                success: false,
+                message: "guru_id wajib diisi"
+            });
         }
 
         const jadwal = await getActiveJadwalGuru(parseInt(guru_id));
@@ -58,32 +78,32 @@ const absensiByGuru = async (req, res) => {
         if (!jadwal) {
             return res.status(404).json({
                 success: false,
-                message: "Tidak ada jadwal aktif untuk guru saat ini",
+                message: "Tidak ada jadwal aktif untuk guru saat ini"
             });
         }
 
-        const today = getTodayWIB();  
+        const today = getTodayWIB();
         const siswaList = jadwal.kelas.siswa;
         const siswaIds = siswaList.map((s) => s.id);
 
-         
         const absensiList = await prisma.absensiSiswa.findMany({
             where: {
                 siswa_id: { in: siswaIds },
                 tanggal: today,
-                deleted_at: null,
+                deleted_at: null
             },
             include: {
                 detail: {
-                    where: { jadwal_id: jadwal.id, deleted_at: null },
-                },
-            },
+                    where: {
+                        jadwal_id: jadwal.id,
+                        deleted_at: null
+                    }
+                }
+            }
         });
 
-        
         const absensiMap = new Map(absensiList.map((a) => [a.siswa_id, a]));
 
-        
         const toCreate = [];
         const results = [];
 
@@ -91,14 +111,24 @@ const absensiByGuru = async (req, res) => {
             const absensi = absensiMap.get(siswa.id);
 
             if (!absensi) {
-                results.push({ siswa_id: siswa.id, nama: siswa.nama, status: "ALPHA", message: "Belum tap in" });
+                results.push({
+                    siswa_id: siswa.id,
+                    nama: siswa.nama,
+                    status: "ALPHA",
+                    message: "Belum tap in"
+                });
                 continue;
             }
 
             const existingDetail = absensi.detail[0] ?? null;
 
             if (existingDetail) {
-                results.push({ siswa_id: siswa.id, nama: siswa.nama, status: existingDetail.status, message: "Sudah diabsen" });
+                results.push({
+                    siswa_id: siswa.id,
+                    nama: siswa.nama,
+                    status: existingDetail.status,
+                    message: "Sudah diabsen"
+                });
                 continue;
             }
 
@@ -108,7 +138,7 @@ const absensiByGuru = async (req, res) => {
                 jadwal_id: jadwal.id,
                 guru_id: parseInt(guru_id),
                 status: statusAbsensi,
-                jam_absen: new Date(),
+                jam_absen: new Date()
             });
 
             results.push({
@@ -116,11 +146,10 @@ const absensiByGuru = async (req, res) => {
                 nama: siswa.nama,
                 status: statusAbsensi,
                 tap_in: formatTime(absensi.tap_in),
-                status_tapin: absensi.status_tapin,
+                status_tapin: absensi.status_tapin
             });
         }
 
-        
         if (toCreate.length > 0) {
             await prisma.$transaction(
                 toCreate.map((data) => prisma.detailAbsensiSiswa.create({ data }))
@@ -134,54 +163,88 @@ const absensiByGuru = async (req, res) => {
                 id: jadwal.id,
                 kelas: jadwal.kelas.kelas,
                 hari: jadwal.hari,
-                jam: `${formatTime(jadwal.jam_mulai)} - ${formatTime(jadwal.jam_selesai)}`,
+                jam: `${formatTime(jadwal.jam_mulai)} - ${formatTime(jadwal.jam_selesai)}`
             },
-            data: results,
+            data: results
         });
+
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server" });
+        console.error("Error in absensiByGuru:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server"
+        });
     }
 };
 
-// update status manual
+// Update status absensi manual
 const updateStatusAbsensiManual = async (req, res) => {
     try {
         const { detail_absensi_id, status, keterangan } = req.body;
 
         if (!detail_absensi_id || !status) {
-            return res.status(400).json({ success: false, message: "detail_absensi_id dan status diperlukan" });
+            return res.status(400).json({
+                success: false,
+                message: "detail_absensi_id dan status diperlukan"
+            });
         }
 
         if (!Object.values(StatusAbsensi).includes(status)) {
             return res.status(400).json({
                 success: false,
-                message: "Status tidak valid. Gunakan: HADIR, IZIN, SAKIT, atau ALPHA",
+                message: "Status tidak valid. Gunakan: HADIR, IZIN, SAKIT, atau ALPHA"
             });
         }
 
         const detailAbsensi = await prisma.detailAbsensiSiswa.findFirst({
-            where: { id: parseInt(detail_absensi_id), deleted_at: null },
-            include: {
-                absensi: { include: { siswa: { select: { nama: true } } } },
-                jadwal: { include: { mata_pelajaran: true, kelas: { include: { jurusan: true } } } },
+            where: {
+                id: parseInt(detail_absensi_id),
+                deleted_at: null
             },
+            include: {
+                absensi: {
+                    include: {
+                        siswa: {
+                            select: { nama: true }
+                        }
+                    }
+                },
+                jadwal: {
+                    include: {
+                        mata_pelajaran: true,
+                        kelas: {
+                            include: { jurusan: true }
+                        }
+                    }
+                }
+            }
         });
 
         if (!detailAbsensi) {
-            return res.status(404).json({ success: false, message: "Detail absensi tidak ditemukan" });
+            return res.status(404).json({
+                success: false,
+                message: "Detail absensi tidak ditemukan"
+            });
         }
 
         const updated = await prisma.detailAbsensiSiswa.update({
             where: { id: parseInt(detail_absensi_id) },
             data: {
                 status,
-                keterangan: keterangan ?? detailAbsensi.keterangan,
+                keterangan: keterangan ?? detailAbsensi.keterangan
             },
             include: {
-                absensi: { include: { siswa: { select: { id: true, nama: true } } } },
-                jadwal: { include: { mata_pelajaran: true } },
-            },
+                absensi: {
+                    include: {
+                        siswa: {
+                            select: { id: true, nama: true }
+                        }
+                    }
+                },
+                jadwal: {
+                    include: { mata_pelajaran: true }
+                }
+            }
         });
 
         return res.status(200).json({
@@ -197,23 +260,31 @@ const updateStatusAbsensiManual = async (req, res) => {
                 jadwal: {
                     mata_pelajaran: updated.jadwal.mata_pelajaran.nama_mapel,
                     hari: updated.jadwal.hari,
-                    tanggal: formatDate(updated.absensi.tanggal),
-                },
-            },
+                    tanggal: formatDate(updated.absensi.tanggal)
+                }
+            }
         });
+
     } catch (error) {
-        console.error("Error update status absensi:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server", error: error.message });
+        console.error("Error in updateStatusAbsensiManual:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
     }
 };
 
-// rekap absensi siswa
+// Get rekap absensi siswa
 const getRekapAbsensiSiswa = async (req, res) => {
     try {
         const { siswa_id, tanggal_mulai, tanggal_akhir, mapel_id } = req.query;
 
         if (!siswa_id) {
-            return res.status(400).json({ success: false, message: "siswa_id diperlukan" });
+            return res.status(400).json({
+                success: false,
+                message: "siswa_id diperlukan"
+            });
         }
 
         const whereClause = {
@@ -223,12 +294,12 @@ const getRekapAbsensiSiswa = async (req, res) => {
                 deleted_at: null,
                 tanggal: {
                     gte: tanggal_mulai ? parseTanggal(tanggal_mulai) : undefined,
-                    lte: tanggal_akhir ? parseTanggal(tanggal_akhir) : undefined,
-                },
+                    lte: tanggal_akhir ? parseTanggal(tanggal_akhir) : undefined
+                }
             },
             ...(mapel_id
                 ? { jadwal: { mapel_id: parseInt(mapel_id), deleted_at: null } }
-                : { jadwal: { deleted_at: null } }),
+                : { jadwal: { deleted_at: null } })
         };
 
         const detailAbsensi = await prisma.detailAbsensiSiswa.findMany({
@@ -236,22 +307,41 @@ const getRekapAbsensiSiswa = async (req, res) => {
             include: {
                 absensi: {
                     include: {
-                        siswa: { select: { id: true, nama: true, kelas: { include: { jurusan: true, tahun: true } } } },
-                    },
+                        siswa: {
+                            select: {
+                                id: true,
+                                nama: true,
+                                kelas: {
+                                    include: {
+                                        jurusan: true,
+                                        tahun: true
+                                    }
+                                }
+                            }
+                        }
+                    }
                 },
-                jadwal: { include: { mata_pelajaran: true } },
-                guru: { select: { nama: true } },
+                jadwal: {
+                    include: { mata_pelajaran: true }
+                },
+                guru: {
+                    select: { nama: true }
+                }
             },
-            orderBy: { absensi: { tanggal: "desc" } },
+            orderBy: {
+                absensi: { tanggal: "desc" }
+            }
         });
 
         if (detailAbsensi.length === 0) {
-            return res.status(404).json({ success: false, message: "Data absensi tidak ditemukan" });
+            return res.status(404).json({
+                success: false,
+                message: "Data absensi tidak ditemukan"
+            });
         }
 
         const stats = hitungStatistik(detailAbsensi);
 
-        // Group by mata pelajaran
         const groupByMapel = detailAbsensi.reduce((acc, detail) => {
             const mapelName = detail.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
             if (!acc[mapelName]) acc[mapelName] = { total: 0, hadir: 0, izin: 0, sakit: 0, alpha: 0 };
@@ -267,7 +357,7 @@ const getRekapAbsensiSiswa = async (req, res) => {
                 siswa: detailAbsensi[0].absensi.siswa,
                 periode: {
                     tanggal_mulai: tanggal_mulai || "Awal",
-                    tanggal_akhir: tanggal_akhir || "Sekarang",
+                    tanggal_akhir: tanggal_akhir || "Sekarang"
                 },
                 statistik_keseluruhan: stats,
                 statistik_per_mapel: groupByMapel,
@@ -280,52 +370,83 @@ const getRekapAbsensiSiswa = async (req, res) => {
                     keterangan: detail.keterangan,
                     guru: detail.guru?.nama ?? "-",
                     tap_in: formatTime(detail.absensi.tap_in),
-                    status_tapin: detail.absensi.status_tapin,
-                })),
-            },
+                    status_tapin: detail.absensi.status_tapin
+                }))
+            }
         });
+
     } catch (error) {
-        console.error("Error get rekap absensi siswa:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server", error: error.message });
+        console.error("Error in getRekapAbsensiSiswa:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
     }
 };
 
-// laporan harian per kelas
+// Get laporan harian per kelas
 const getRekapAbsensiKelas = async (req, res) => {
     try {
         const { kelas_id, tanggal } = req.query;
 
         if (!kelas_id || !tanggal) {
-            return res.status(400).json({ success: false, message: "kelas_id dan tanggal wajib diisi" });
+            return res.status(400).json({
+                success: false,
+                message: "kelas_id dan tanggal wajib diisi"
+            });
         }
 
-        const targetDate = parseTanggal(tanggal); 
+        const targetDate = parseTanggal(tanggal);
         const hari = validateHari(targetDate);
 
         const kelas = await prisma.kelas.findFirst({
-            where: { id: parseInt(kelas_id), deleted_at: null },
+            where: {
+                id: parseInt(kelas_id),
+                deleted_at: null
+            },
             include: {
                 jurusan: true,
                 tahun: true,
-                siswa: { where: { deleted_at: null }, select: { id: true, nama: true } },
-            },
+                siswa: {
+                    where: { deleted_at: null },
+                    select: {
+                        id: true,
+                        nama: true
+                    }
+                }
+            }
         });
 
         if (!kelas) {
-            return res.status(404).json({ success: false, message: "Kelas tidak ditemukan" });
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan"
+            });
         }
 
         const jadwalHariIni = await prisma.jadwal.findMany({
-            where: { kelas_id: kelas.id, hari, deleted_at: null },
+            where: {
+                kelas_id: kelas.id,
+                hari,
+                deleted_at: null
+            },
             include: {
                 mata_pelajaran: true,
                 guru: true,
                 detail_absensi: {
-                    where: { deleted_at: null, absensi: { tanggal: targetDate } },
-                    include: { absensi: { include: { siswa: true } } },
-                },
+                    where: {
+                        deleted_at: null,
+                        absensi: { tanggal: targetDate }
+                    },
+                    include: {
+                        absensi: {
+                            include: { siswa: true }
+                        }
+                    }
+                }
             },
-            orderBy: { jam_mulai: "asc" },
+            orderBy: { jam_mulai: "asc" }
         });
 
         const laporanPerSiswa = kelas.siswa.map((siswa) => {
@@ -338,7 +459,7 @@ const getRekapAbsensiKelas = async (req, res) => {
                     jam: `${formatTime(jadwal.jam_mulai)} - ${formatTime(jadwal.jam_selesai)}`,
                     status: detail ? detail.status : "BELUM_ABSEN",
                     keterangan: detail?.keterangan ?? null,
-                    detail_id: detail?.id ?? null,
+                    detail_id: detail?.id ?? null
                 };
             });
 
@@ -350,8 +471,8 @@ const getRekapAbsensiKelas = async (req, res) => {
                     izin: absensi.filter((a) => a.status === "IZIN").length,
                     sakit: absensi.filter((a) => a.status === "SAKIT").length,
                     alpha: absensi.filter((a) => a.status === "ALPHA").length,
-                    belum_absen: absensi.filter((a) => a.status === "BELUM_ABSEN").length,
-                },
+                    belum_absen: absensi.filter((a) => a.status === "BELUM_ABSEN").length
+                }
             };
         });
 
@@ -359,7 +480,11 @@ const getRekapAbsensiKelas = async (req, res) => {
             success: true,
             message: "Berhasil mendapatkan laporan harian per kelas",
             data: {
-                kelas: { id: kelas.id, nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`, tahun_ajaran: kelas.tahun.tahun_ajaran },
+                kelas: {
+                    id: kelas.id,
+                    nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`,
+                    tahun_ajaran: kelas.tahun.tahun_ajaran
+                },
                 tanggal: formatDate(targetDate),
                 hari,
                 jadwal_hari_ini: jadwalHariIni.map((j) => ({
@@ -368,30 +493,37 @@ const getRekapAbsensiKelas = async (req, res) => {
                     guru: j.guru.nama,
                     jam: `${formatTime(j.jam_mulai)} - ${formatTime(j.jam_selesai)}`,
                     total_absen: j.detail_absensi.length,
-                    sudah_dilakukan: j.detail_absensi.length > 0,
+                    sudah_dilakukan: j.detail_absensi.length > 0
                 })),
                 statistik_kelas: {
                     total_siswa: kelas.siswa.length,
                     total_jadwal: jadwalHariIni.length,
                     total_absensi_dilakukan: jadwalHariIni.reduce((sum, j) => sum + j.detail_absensi.length, 0),
-                    total_absensi_seharusnya: kelas.siswa.length * jadwalHariIni.length,
+                    total_absensi_seharusnya: kelas.siswa.length * jadwalHariIni.length
                 },
-                laporan_per_siswa: laporanPerSiswa,
-            },
+                laporan_per_siswa: laporanPerSiswa
+            }
         });
+
     } catch (error) {
-        console.error("Error laporan harian:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server" });
+        console.error("Error in getRekapAbsensiKelas:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server"
+        });
     }
 };
 
-// rekap siswa per tahun (semua siswa)
+// Get rekap absensi siswa tahunan
 const getRekapAbsensiSiswaYearly = async (req, res) => {
     try {
         const { siswa_id, tahun } = req.query;
 
         if (!siswa_id || !tahun) {
-            return res.status(400).json({ success: false, message: "siswa_id dan tahun diperlukan" });
+            return res.status(400).json({
+                success: false,
+                message: "siswa_id dan tahun diperlukan"
+            });
         }
 
         const tahunInt = parseInt(tahun);
@@ -402,25 +534,44 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
             where: {
                 siswa_id,
                 deleted_at: null,
-                tanggal: { gte: tanggalMulai, lte: tanggalAkhir },
+                tanggal: {
+                    gte: tanggalMulai,
+                    lte: tanggalAkhir
+                }
             },
             include: {
                 siswa: {
-                    select: { id: true, nama: true, kelas: { include: { jurusan: true, tahun: true } } },
+                    select: {
+                        id: true,
+                        nama: true,
+                        kelas: {
+                            include: {
+                                jurusan: true,
+                                tahun: true
+                            }
+                        }
+                    }
                 },
                 detail: {
                     where: { deleted_at: null },
                     include: {
-                        jadwal: { include: { mata_pelajaran: true } },
-                        guru: { select: { nama: true } },
-                    },
-                },
+                        jadwal: {
+                            include: { mata_pelajaran: true }
+                        },
+                        guru: {
+                            select: { nama: true }
+                        }
+                    }
+                }
             },
-            orderBy: { tanggal: "asc" },
+            orderBy: { tanggal: "asc" }
         });
 
         if (absensiList.length === 0) {
-            return res.status(404).json({ success: false, message: "Data absensi tidak ditemukan untuk tahun tersebut" });
+            return res.status(404).json({
+                success: false,
+                message: "Data absensi tidak ditemukan untuk tahun tersebut"
+            });
         }
 
         const absensiById = new Map(absensiList.map((a) => [a.id, a]));
@@ -428,7 +579,6 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
 
         const statsKeseluruhan = hitungStatistik(semuaDetail);
 
-        // Statistik per bulan
         const perBulan = Array.from({ length: 12 }, (_, i) => ({
             bulan: i + 1,
             nama_bulan: NAMA_BULAN[i],
@@ -438,16 +588,14 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
                     const a = absensiById.get(d.absensi_id);
                     return a && new Date(a.tanggal).getUTCMonth() === i;
                 })
-            ),
+            )
         }));
 
-        // Hitung tap per bulan
         absensiList.forEach((a) => {
             const idx = new Date(a.tanggal).getUTCMonth();
             if (a.tap_in) perBulan[idx].total_hadir_tap++;
         });
 
-        // Statistik per mata pelajaran
         const mapelMap = {};
         semuaDetail.forEach((d) => {
             const nama = d.jadwal?.mata_pelajaran?.nama_mapel ?? "Unknown";
@@ -459,10 +607,9 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
         const perMapel = Object.entries(mapelMap).map(([nama_mapel, stat]) => ({
             nama_mapel,
             ...stat,
-            persentase_kehadiran: stat.total > 0 ? ((stat.hadir / stat.total) * 100).toFixed(2) : "0.00",
+            persentase_kehadiran: stat.total > 0 ? ((stat.hadir / stat.total) * 100).toFixed(2) : "0.00"
         }));
 
-        // Statistik per semester
         const sem1 = semuaDetail.filter((d) => {
             const a = absensiById.get(d.absensi_id);
             const bln = new Date(a?.tanggal).getUTCMonth() + 1;
@@ -482,13 +629,16 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
             data: {
                 siswa: absensiList[0].siswa,
                 tahun: tahunInt,
-                periode: { tanggal_mulai: formatDate(tanggalMulai), tanggal_akhir: formatDate(tanggalAkhir) },
+                periode: {
+                    tanggal_mulai: formatDate(tanggalMulai),
+                    tanggal_akhir: formatDate(tanggalAkhir)
+                },
                 total_hari_masuk: absensiList.filter((a) => a.tap_in).length,
                 total_hari_absen: absensiList.length,
                 statistik_keseluruhan: statsKeseluruhan,
                 statistik_per_semester: [
                     buildSemesterStat(sem1, "Semester 1 (Jan–Jun)"),
-                    buildSemesterStat(sem2, "Semester 2 (Jul–Des)"),
+                    buildSemesterStat(sem2, "Semester 2 (Jul–Des)")
                 ],
                 statistik_per_bulan: perBulan,
                 statistik_per_mapel: perMapel,
@@ -503,52 +653,94 @@ const getRekapAbsensiSiswaYearly = async (req, res) => {
                         status: d.status,
                         jam_absen: formatDateTime(d.jam_absen),
                         keterangan: d.keterangan,
-                        guru: d.guru?.nama ?? "-",
-                    })),
-                })),
-            },
+                        guru: d.guru?.nama ?? "-"
+                    }))
+                }))
+            }
         });
+
     } catch (error) {
-        console.error("Error get rekap absensi yearly:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server", error: error.message });
+        console.error("Error in getRekapAbsensiSiswaYearly:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
     }
 };
 
-// rekap by jadwal
+// Get rekap absensi by jadwal
 const getRekapAbsensiByJadwal = async (req, res) => {
     try {
         const { jadwal_id, tanggal } = req.query;
 
-        if (!jadwal_id) return res.status(400).json({ success: false, message: "Jadwal id harus diisi" });
-        if (!tanggal) return res.status(400).json({ success: false, message: "Tanggal harus diisi" });
+        if (!jadwal_id) {
+            return res.status(400).json({
+                success: false,
+                message: "Jadwal id harus diisi"
+            });
+        }
+
+        if (!tanggal) {
+            return res.status(400).json({
+                success: false,
+                message: "Tanggal harus diisi"
+            });
+        }
 
         const jadwal = await prisma.jadwal.findFirst({
-            where: { id: parseInt(jadwal_id), deleted_at: null },
+            where: {
+                id: parseInt(jadwal_id),
+                deleted_at: null
+            },
             include: {
                 mata_pelajaran: true,
-                guru: { select: { nama: true } },
+                guru: {
+                    select: { nama: true }
+                },
                 kelas: {
                     include: {
                         jurusan: true,
-                        siswa: { where: { deleted_at: null }, select: { id: true, nama: true } },
-                    },
-                },
-            },
+                        siswa: {
+                            where: { deleted_at: null },
+                            select: { id: true, nama: true }
+                        }
+                    }
+                }
+            }
         });
 
-        if (!jadwal) return res.status(404).json({ success: false, message: "Jadwal tidak ditemukan" });
+        if (!jadwal) {
+            return res.status(404).json({
+                success: false,
+                message: "Jadwal tidak ditemukan"
+            });
+        }
 
         const date = parseTanggal(tanggal);
 
         const absensiList = await prisma.absensiSiswa.findMany({
-            where: { tanggal: date, deleted_at: null, siswa: { kelas_id: jadwal.kelas_id } },
-            include: {
-                siswa: { select: { id: true, nama: true } },
-                detail: {
-                    where: { jadwal_id: parseInt(jadwal_id), deleted_at: null },
-                    select: { status: true, jam_absen: true, keterangan: true },
-                },
+            where: {
+                tanggal: date,
+                deleted_at: null,
+                siswa: { kelas_id: jadwal.kelas_id }
             },
+            include: {
+                siswa: {
+                    select: { id: true, nama: true }
+                },
+                detail: {
+                    where: {
+                        jadwal_id: parseInt(jadwal_id),
+                        deleted_at: null
+                    },
+                    select: {
+                        status: true,
+                        jam_absen: true,
+                        keterangan: true
+                    }
+                }
+            }
         });
 
         const absensiMap = new Map(absensiList.map((a) => [a.siswa_id, a]));
@@ -564,7 +756,7 @@ const getRekapAbsensiByJadwal = async (req, res) => {
                 status_tapin: absensi?.status_tapin ?? null,
                 status_mapel: detail?.status ?? "ALPHA",
                 jam_absen: detail ? formatDateTime(detail.jam_absen) : null,
-                keterangan: detail?.keterangan ?? null,
+                keterangan: detail?.keterangan ?? null
             };
         });
 
@@ -575,7 +767,7 @@ const getRekapAbsensiByJadwal = async (req, res) => {
             izin: rekapSiswa.filter((s) => s.status_mapel === "IZIN").length,
             sakit: rekapSiswa.filter((s) => s.status_mapel === "SAKIT").length,
             tepat_waktu: rekapSiswa.filter((s) => s.status_tapin === "TEPAT_WAKTU").length,
-            telambat: rekapSiswa.filter((s) => s.status_tapin === "TELAMBAT").length,
+            telambat: rekapSiswa.filter((s) => s.status_tapin === "TELAMBAT").length
         };
 
         return res.status(200).json({
@@ -590,25 +782,33 @@ const getRekapAbsensiByJadwal = async (req, res) => {
                     mata_pelajaran: jadwal.mata_pelajaran.nama_mapel,
                     guru: jadwal.guru,
                     kelas: `${jadwal.kelas.kelas} ${jadwal.kelas.jurusan.nama_jurusan}`,
-                    tanggal: formatDate(date),
+                    tanggal: formatDate(date)
                 },
                 rekap_siswa: rekapSiswa,
-                summary,
-            },
+                summary
+            }
         });
+
     } catch (error) {
-        console.error("Error getting absensi by jadwal:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server", error: error.message });
+        console.error("Error in getRekapAbsensiByJadwal:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
     }
 };
 
-// rekap per tahun
+// Get rekap absensi kelas tahunan
 const GetRekapAbsensiKelasTahunan = async (req, res) => {
     try {
         const { kelas_id, tahun } = req.query;
 
         if (!kelas_id || !tahun) {
-            return res.status(400).json({ success: false, message: "kelas_id dan tahun wajib diisi" });
+            return res.status(400).json({
+                success: false,
+                message: "kelas_id dan tahun wajib diisi"
+            });
         }
 
         const tahunInt = parseInt(tahun);
@@ -616,34 +816,64 @@ const GetRekapAbsensiKelasTahunan = async (req, res) => {
         const tanggalAkhir = new Date(Date.UTC(tahunInt, 11, 31));
 
         const kelas = await prisma.kelas.findFirst({
-            where: { id: parseInt(kelas_id), deleted_at: null },
+            where: {
+                id: parseInt(kelas_id),
+                deleted_at: null
+            },
             include: {
                 jurusan: true,
                 tahun: true,
-                siswa: { where: { deleted_at: null }, select: { id: true, nama: true } },
-            },
+                siswa: {
+                    where: { deleted_at: null },
+                    select: {
+                        id: true,
+                        nama: true
+                    }
+                }
+            }
         });
 
-        if (!kelas) return res.status(404).json({ success: false, message: "Kelas tidak ditemukan" });
+        if (!kelas) {
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan"
+            });
+        }
 
         const detailAbsensi = await prisma.detailAbsensiSiswa.findMany({
             where: {
                 deleted_at: null,
                 absensi: {
                     deleted_at: null,
-                    tanggal: { gte: tanggalMulai, lte: tanggalAkhir },
-                    siswa: { kelas_id: parseInt(kelas_id) },
-                },
+                    tanggal: {
+                        gte: tanggalMulai,
+                        lte: tanggalAkhir
+                    },
+                    siswa: { kelas_id: parseInt(kelas_id) }
+                }
             },
             include: {
-                absensi: { include: { siswa: { select: { id: true, nama: true } } } },
-                jadwal: { include: { mata_pelajaran: true } },
+                absensi: {
+                    include: {
+                        siswa: {
+                            select: { id: true, nama: true }
+                        }
+                    }
+                },
+                jadwal: {
+                    include: { mata_pelajaran: true }
+                }
             },
-            orderBy: { absensi: { tanggal: "asc" } },
+            orderBy: {
+                absensi: { tanggal: "asc" }
+            }
         });
 
         if (detailAbsensi.length === 0) {
-            return res.status(404).json({ success: false, message: "Tidak ada data absensi untuk kelas dan tahun tersebut" });
+            return res.status(404).json({
+                success: false,
+                message: "Tidak ada data absensi untuk kelas dan tahun tersebut"
+            });
         }
 
         const statistikPerSiswa = kelas.siswa.map((siswa) => {
@@ -666,8 +896,8 @@ const GetRekapAbsensiKelasTahunan = async (req, res) => {
                 per_mapel: Object.entries(mapelMap).map(([nama_mapel, stat]) => ({
                     nama_mapel,
                     ...stat,
-                    persentase_kehadiran: stat.total > 0 ? ((stat.hadir / stat.total) * 100).toFixed(2) : "0.00",
-                })),
+                    persentase_kehadiran: stat.total > 0 ? ((stat.hadir / stat.total) * 100).toFixed(2) : "0.00"
+                }))
             };
         });
 
@@ -675,31 +905,49 @@ const GetRekapAbsensiKelasTahunan = async (req, res) => {
             success: true,
             message: `Berhasil mengambil rekap absensi kelas tahun ${tahunInt}`,
             data: {
-                kelas: { id: kelas.id, nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`, tahun_ajaran: kelas.tahun.tahun_ajaran },
+                kelas: {
+                    id: kelas.id,
+                    nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`,
+                    tahun_ajaran: kelas.tahun.tahun_ajaran
+                },
                 tahun: tahunInt,
-                periode: { tanggal_mulai: formatDate(tanggalMulai), tanggal_akhir: formatDate(tanggalAkhir) },
+                periode: {
+                    tanggal_mulai: formatDate(tanggalMulai),
+                    tanggal_akhir: formatDate(tanggalAkhir)
+                },
                 statistik_kelas: hitungStatistik(detailAbsensi),
                 statistik_per_bulan: groupPerBulan(detailAbsensi, (d) => d.absensi.tanggal),
-                statistik_per_siswa: statistikPerSiswa,
-            },
+                statistik_per_siswa: statistikPerSiswa
+            }
         });
+
     } catch (error) {
-        console.error("Error rekap absensi kelas tahunan:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server", error: error.message });
+        console.error("Error in GetRekapAbsensiKelasTahunan:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
     }
 };
 
-// rekap absensi per semester
+// Get rekap absensi kelas per semester
 const GetRekapAbsensiKelasSemester = async (req, res) => {
     try {
         const { kelas_id, tahun, semester } = req.query;
 
         if (!kelas_id || !tahun || !semester) {
-            return res.status(400).json({ success: false, message: "kelas_id, tahun, dan semester wajib diisi" });
+            return res.status(400).json({
+                success: false,
+                message: "kelas_id, tahun, dan semester wajib diisi"
+            });
         }
 
         if (!["1", "2"].includes(semester)) {
-            return res.status(400).json({ success: false, message: "Semester tidak valid. Gunakan: 1 atau 2" });
+            return res.status(400).json({
+                success: false,
+                message: "Semester tidak valid. Gunakan: 1 atau 2"
+            });
         }
 
         const tahunInt = parseInt(tahun);
@@ -711,34 +959,64 @@ const GetRekapAbsensiKelasSemester = async (req, res) => {
             : new Date(Date.UTC(tahunInt, 11, 31));
 
         const kelas = await prisma.kelas.findFirst({
-            where: { id: parseInt(kelas_id), deleted_at: null },
+            where: {
+                id: parseInt(kelas_id),
+                deleted_at: null
+            },
             include: {
                 jurusan: true,
                 tahun: true,
-                siswa: { where: { deleted_at: null }, select: { id: true, nama: true } },
-            },
+                siswa: {
+                    where: { deleted_at: null },
+                    select: {
+                        id: true,
+                        nama: true
+                    }
+                }
+            }
         });
 
-        if (!kelas) return res.status(404).json({ success: false, message: "Kelas tidak ditemukan" });
+        if (!kelas) {
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan"
+            });
+        }
 
         const detailAbsensi = await prisma.detailAbsensiSiswa.findMany({
             where: {
                 deleted_at: null,
                 absensi: {
                     deleted_at: null,
-                    tanggal: { gte: tanggalMulai, lte: tanggalAkhir },
-                    siswa: { kelas_id: parseInt(kelas_id) },
-                },
+                    tanggal: {
+                        gte: tanggalMulai,
+                        lte: tanggalAkhir
+                    },
+                    siswa: { kelas_id: parseInt(kelas_id) }
+                }
             },
             include: {
-                absensi: { include: { siswa: { select: { id: true, nama: true } } } },
-                jadwal: { include: { mata_pelajaran: true } },
+                absensi: {
+                    include: {
+                        siswa: {
+                            select: { id: true, nama: true }
+                        }
+                    }
+                },
+                jadwal: {
+                    include: { mata_pelajaran: true }
+                }
             },
-            orderBy: { absensi: { tanggal: "asc" } },
+            orderBy: {
+                absensi: { tanggal: "asc" }
+            }
         });
 
         if (detailAbsensi.length === 0) {
-            return res.status(404).json({ success: false, message: "Tidak ada data absensi untuk kelas dan semester tersebut" });
+            return res.status(404).json({
+                success: false,
+                message: "Tidak ada data absensi untuk kelas dan semester tersebut"
+            });
         }
 
         const statistikPerSiswa = kelas.siswa.map((siswa) => {
@@ -758,8 +1036,8 @@ const GetRekapAbsensiKelasSemester = async (req, res) => {
                 per_mapel: Object.entries(mapelMap).map(([nama_mapel, stat]) => ({
                     nama_mapel,
                     ...stat,
-                    persentase_kehadiran: stat.total > 0 ? ((stat.hadir / stat.total) * 100).toFixed(2) : "0.00",
-                })),
+                    persentase_kehadiran: stat.total > 0 ? ((stat.hadir / stat.total) * 100).toFixed(2) : "0.00"
+                }))
             };
         });
 
@@ -767,40 +1045,66 @@ const GetRekapAbsensiKelasSemester = async (req, res) => {
             success: true,
             message: `Berhasil mengambil rekap absensi kelas semester ${semester} tahun ${tahunInt}`,
             data: {
-                kelas: { id: kelas.id, nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`, tahun_ajaran: kelas.tahun.tahun_ajaran },
+                kelas: {
+                    id: kelas.id,
+                    nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`,
+                    tahun_ajaran: kelas.tahun.tahun_ajaran
+                },
                 tahun: tahunInt,
                 semester: parseInt(semester),
-                periode: { tanggal_mulai: formatDate(tanggalMulai), tanggal_akhir: formatDate(tanggalAkhir) },
+                periode: {
+                    tanggal_mulai: formatDate(tanggalMulai),
+                    tanggal_akhir: formatDate(tanggalAkhir)
+                },
                 statistik_kelas: hitungStatistik(detailAbsensi),
-                statistik_per_siswa: statistikPerSiswa,
-            },
+                statistik_per_siswa: statistikPerSiswa
+            }
         });
+
     } catch (error) {
-        console.error("Error rekap absensi kelas semester:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server", error: error.message });
+        console.error("Error in GetRekapAbsensiKelasSemester:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
     }
 };
 
-// delete soft delete
+// Delete detail absensi (soft delete)
 const deleteDetailAbsensi = async (req, res) => {
     try {
         const { id } = req.params;
 
         const detailAbsensi = await prisma.detailAbsensiSiswa.findFirst({
-            where: { id: parseInt(id), deleted_at: null },
-            include: {
-                absensi: { include: { siswa: { select: { nama: true } } } },
-                jadwal: { include: { mata_pelajaran: true } },
+            where: {
+                id: parseInt(id),
+                deleted_at: null
             },
+            include: {
+                absensi: {
+                    include: {
+                        siswa: {
+                            select: { nama: true }
+                        }
+                    }
+                },
+                jadwal: {
+                    include: { mata_pelajaran: true }
+                }
+            }
         });
 
         if (!detailAbsensi) {
-            return res.status(404).json({ success: false, message: "Detail absensi tidak ditemukan" });
+            return res.status(404).json({
+                success: false,
+                message: "Detail absensi tidak ditemukan"
+            });
         }
 
         await prisma.detailAbsensiSiswa.update({
             where: { id: parseInt(id) },
-            data: { deleted_at: new Date() },
+            data: { deleted_at: new Date() }
         });
 
         return res.status(200).json({
@@ -810,28 +1114,39 @@ const deleteDetailAbsensi = async (req, res) => {
                 id: detailAbsensi.id,
                 siswa: detailAbsensi.absensi.siswa.nama,
                 mata_pelajaran: detailAbsensi.jadwal?.mata_pelajaran?.nama_mapel ?? "-",
-                tanggal: formatDate(detailAbsensi.absensi.tanggal),
-            },
+                tanggal: formatDate(detailAbsensi.absensi.tanggal)
+            }
         });
+
     } catch (error) {
-        console.error("Error delete detail absensi:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server", error: error.message });
+        console.error("Error in deleteDetailAbsensi:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
     }
 };
 
-// pratinjau walas
+// Pratinjau walas
 const pratinjauWalas = async (req, res) => {
     try {
         const { kelas_id, tanggal } = req.query;
 
         if (!kelas_id || !tanggal) {
-            return res.status(400).json({ success: false, message: "kelas_id dan tanggal wajib diisi" });
+            return res.status(400).json({
+                success: false,
+                message: "kelas_id dan tanggal wajib diisi"
+            });
         }
 
         const targetDate = parseTanggal(tanggal);
 
         const kelas = await prisma.kelas.findFirst({
-            where: { id: parseInt(kelas_id), deleted_at: null },
+            where: {
+                id: parseInt(kelas_id),
+                deleted_at: null
+            },
             include: {
                 jurusan: true,
                 tahun: true,
@@ -840,22 +1155,43 @@ const pratinjauWalas = async (req, res) => {
                     select: {
                         id: true,
                         nama: true,
-                        rfid: { where: { is_active: true, deleted_at: null }, select: { uid_rfid: true } },
-                    },
-                },
-            },
+                        rfid: {
+                            where: {
+                                is_active: true,
+                                deleted_at: null
+                            },
+                            select: { uid_rfid: true }
+                        }
+                    }
+                }
+            }
         });
 
-        if (!kelas) return res.status(404).json({ success: false, message: "Kelas tidak ditemukan" });
+        if (!kelas) {
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan"
+            });
+        }
 
         const absensiHariIni = await prisma.absensiSiswa.findMany({
-            where: { tanggal: targetDate, deleted_at: null, siswa: { kelas_id: parseInt(kelas_id) } },
+            where: {
+                tanggal: targetDate,
+                deleted_at: null,
+                siswa: { kelas_id: parseInt(kelas_id) }
+            },
             include: {
                 detail: {
                     where: { deleted_at: null },
-                    select: { id: true, status: true, keterangan: true, jadwal_id: true, guru_id: true },
-                },
-            },
+                    select: {
+                        id: true,
+                        status: true,
+                        keterangan: true,
+                        jadwal_id: true,
+                        guru_id: true
+                    }
+                }
+            }
         });
 
         const absensiMap = new Map(absensiHariIni.map((a) => [a.siswa_id, a]));
@@ -865,7 +1201,6 @@ const pratinjauWalas = async (req, res) => {
             const absensi = absensiMap.get(siswa.id);
             const sudah_tap = !!absensi?.tap_in;
 
-            // Filter by jadwal_id null DAN guru_id sesuai walas
             const detailWalas = absensi?.detail?.find((d) => d.jadwal_id === null) ?? null;
 
             let status_rekomendasi = "ALPHA";
@@ -884,7 +1219,7 @@ const pratinjauWalas = async (req, res) => {
                 keterangan: detailWalas?.keterangan ?? null,
                 detail_id: detailWalas?.id ?? null,
                 status_rekomendasi,
-                kategori: !punya_rfid ? "tanpa_rfid" : !sudah_tap ? "belum_tap" : "sudah_tap",
+                kategori: !punya_rfid ? "tanpa_rfid" : !sudah_tap ? "belum_tap" : "sudah_tap"
             };
         });
 
@@ -894,27 +1229,36 @@ const pratinjauWalas = async (req, res) => {
             tanpa_rfid: daftarSiswa.filter((s) => !s.punya_rfid).length,
             sudah_tap: daftarSiswa.filter((s) => s.tap_in).length,
             belum_tap: daftarSiswa.filter((s) => !s.tap_in).length,
-            sudah_diabsen: daftarSiswa.filter((s) => s.sudah_diabsen).length,
+            sudah_diabsen: daftarSiswa.filter((s) => s.sudah_diabsen).length
         };
 
         return res.status(200).json({
             success: true,
             message: "Berhasil mengambil daftar siswa untuk absensi walas",
             data: {
-                kelas: { id: kelas.id, nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`, tahun_ajaran: kelas.tahun.tahun_ajaran },
+                kelas: {
+                    id: kelas.id,
+                    nama: `${kelas.kelas} ${kelas.jurusan.nama_jurusan}`,
+                    tahun_ajaran: kelas.tahun.tahun_ajaran
+                },
                 tanggal: formatDate(targetDate),
                 hari: validateHari(targetDate),
                 summary,
-                daftar_siswa: daftarSiswa,
-            },
+                daftar_siswa: daftarSiswa
+            }
         });
+
     } catch (error) {
-        console.error("Error pratinjau walas:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server", error: error.message });
+        console.error("Error in pratinjauWalas:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
     }
 };
 
-// absensi manual
+// Absensi manual walas
 const absensiManualWalas = async (req, res) => {
     try {
         const { walas_id, kelas_id, tanggal, data_absensi } = req.body;
@@ -922,7 +1266,7 @@ const absensiManualWalas = async (req, res) => {
         if (!walas_id || !kelas_id || !tanggal || !data_absensi?.length) {
             return res.status(400).json({
                 success: false,
-                message: "walas_id, kelas_id, tanggal, dan data_absensi wajib diisi",
+                message: "walas_id, kelas_id, tanggal, dan data_absensi wajib diisi"
             });
         }
 
@@ -930,53 +1274,77 @@ const absensiManualWalas = async (req, res) => {
         if (statusTidakValid) {
             return res.status(400).json({
                 success: false,
-                message: `Status tidak valid untuk siswa_id ${statusTidakValid.siswa_id}. Gunakan: HADIR, IZIN, SAKIT, atau ALPHA`,
+                message: `Status tidak valid untuk siswa_id ${statusTidakValid.siswa_id}. Gunakan: HADIR, IZIN, SAKIT, atau ALPHA`
             });
         }
 
-        //  Validasi kelas + pastikan walas_id sesuai
         const kelas = await prisma.kelas.findFirst({
-            where: { 
-                id: parseInt(kelas_id), 
-                walas_id: parseInt(walas_id), 
-                deleted_at: null 
-            },
+            where: {
+                id: parseInt(kelas_id),
+                walas_id: parseInt(walas_id),
+                deleted_at: null
+            }
         });
 
         if (!kelas) {
-            return res.status(404).json({ success: false, message: "Kelas tidak ditemukan atau Anda bukan walas kelas ini" });
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan atau Anda bukan walas kelas ini"
+            });
         }
 
-        const targetDate = parseTanggal(tanggal); // ✅ WIB-safe
+        const targetDate = parseTanggal(tanggal);
         const siswaIds = data_absensi.map((d) => d.siswa_id);
 
-        // ambil semua absensi + detail sekaligus
         const absensiList = await prisma.absensiSiswa.findMany({
-            where: { siswa_id: { in: siswaIds }, tanggal: targetDate, deleted_at: null },
-            include: {
-                detail: { where: { jadwal_id: null, deleted_at: null } },
+            where: {
+                siswa_id: { in: siswaIds },
+                tanggal: targetDate,
+                deleted_at: null
             },
+            include: {
+                detail: {
+                    where: {
+                        jadwal_id: null,
+                        deleted_at: null
+                    }
+                }
+            }
         });
 
         const absensiMap = new Map(absensiList.map((a) => [a.siswa_id, a]));
 
-        // Pisahkan siswa yang belum punya absensiSiswa
         const siswaTanpaAbsensi = siswaIds.filter((id) => !absensiMap.has(id));
 
-        // Bulk create absensiSiswa kosong untuk yang belum ada
         if (siswaTanpaAbsensi.length > 0) {
             await prisma.$transaction(
                 siswaTanpaAbsensi.map((siswa_id) =>
                     prisma.absensiSiswa.create({
-                        data: { siswa_id, tanggal: targetDate, tap_in: null, tap_out: null, status_tapin: null, rfid_id: null },
+                        data: {
+                            siswa_id,
+                            tanggal: targetDate,
+                            tap_in: null,
+                            tap_out: null,
+                            status_tapin: null,
+                            rfid_id: null
+                        }
                     })
                 )
             );
 
-            // Refresh map setelah create
             const newAbsensi = await prisma.absensiSiswa.findMany({
-                where: { siswa_id: { in: siswaTanpaAbsensi }, tanggal: targetDate },
-                include: { detail: { where: { jadwal_id: null, deleted_at: null } } },
+                where: {
+                    siswa_id: { in: siswaTanpaAbsensi },
+                    tanggal: targetDate
+                },
+                include: {
+                    detail: {
+                        where: {
+                            jadwal_id: null,
+                            deleted_at: null
+                        }
+                    }
+                }
             });
             newAbsensi.forEach((a) => absensiMap.set(a.siswa_id, a));
         }
@@ -990,8 +1358,17 @@ const absensiManualWalas = async (req, res) => {
             const existingDetail = absensi?.detail?.[0] ?? null;
 
             if (existingDetail) {
-                toUpdate.push({ id: existingDetail.id, status: item.status, keterangan: item.keterangan ?? null });
-                results.push({ siswa_id: item.siswa_id, status: item.status, keterangan: item.keterangan ?? null, aksi: "diperbarui" });
+                toUpdate.push({
+                    id: existingDetail.id,
+                    status: item.status,
+                    keterangan: item.keterangan ?? null
+                });
+                results.push({
+                    siswa_id: item.siswa_id,
+                    status: item.status,
+                    keterangan: item.keterangan ?? null,
+                    aksi: "diperbarui"
+                });
             } else {
                 toCreate.push({
                     absensi_id: absensi.id,
@@ -999,18 +1376,25 @@ const absensiManualWalas = async (req, res) => {
                     guru_id: parseInt(walas_id),
                     status: item.status,
                     keterangan: item.keterangan ?? null,
-                    jam_absen: new Date(),
+                    jam_absen: new Date()
                 });
-                results.push({ siswa_id: item.siswa_id, status: item.status, keterangan: item.keterangan ?? null, aksi: "dibuat" });
+                results.push({
+                    siswa_id: item.siswa_id,
+                    status: item.status,
+                    keterangan: item.keterangan ?? null,
+                    aksi: "dibuat"
+                });
             }
         }
 
-        // ✅ Jalankan semua update + create dalam satu transaction
         await prisma.$transaction([
             ...toCreate.map((data) => prisma.detailAbsensiSiswa.create({ data })),
             ...toUpdate.map(({ id, status, keterangan }) =>
-                prisma.detailAbsensiSiswa.update({ where: { id }, data: { status, keterangan } })
-            ),
+                prisma.detailAbsensiSiswa.update({
+                    where: { id },
+                    data: { status, keterangan }
+                })
+            )
         ]);
 
         return res.status(200).json({
@@ -1021,12 +1405,17 @@ const absensiManualWalas = async (req, res) => {
                 dibuat: results.filter((r) => r.aksi === "dibuat").length,
                 diperbarui: results.filter((r) => r.aksi === "diperbarui").length,
                 tanggal: formatDate(targetDate),
-                detail: results,
-            },
+                detail: results
+            }
         });
+
     } catch (error) {
-        console.error("Error absensi manual walas:", error);
-        return res.status(500).json({ success: false, message: "Terjadi kesalahan pada server", error: error.message });
+        console.error("Error in absensiManualWalas:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
     }
 };
 
@@ -1041,5 +1430,5 @@ module.exports = {
     GetRekapAbsensiKelasSemester,
     pratinjauWalas,
     absensiManualWalas,
-    deleteDetailAbsensi,
+    deleteDetailAbsensi
 };

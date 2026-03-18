@@ -32,6 +32,13 @@ const getAllKelas = async (req, res) => {
                             tahun_ajaran: true
                         }
                     },
+                    walas: {
+                        select: {
+                            id: true,
+                            nama: true,
+                            NIP: true
+                        }
+                    },
                     _count: {
                         select: {
                             siswa: true,
@@ -88,6 +95,13 @@ const getKelasById = async (req, res) => {
                         tahun_ajaran: true
                     }
                 },
+                walas: {
+                    select: {
+                        id: true,
+                        nama: true,
+                        NIP: true
+                    }
+                },
                 siswa: {
                     where: {
                         deleted_at: null
@@ -134,7 +148,8 @@ const createKelas = async (req, res) => {
         const {
             kelas,
             jurusan_id,
-            tahun_ajaran_id
+            tahun_ajaran_id,
+            walas_id
         } = req.body;
 
         // Validasi input wajib
@@ -166,6 +181,14 @@ const createKelas = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Tahun ajaran ID harus berupa angka"
+            });
+        }
+
+        // Validasi walas_id harus angka (jika diberikan)
+        if (walas_id !== undefined && isNaN(parseInt(walas_id))) {
+            return res.status(400).json({
+                success: false,
+                message: "Walas ID harus berupa angka"
             });
         }
 
@@ -199,6 +222,39 @@ const createKelas = async (req, res) => {
             });
         }
 
+        // Validasi walas exists + cek konflik (jika diberikan)
+        if (walas_id) {
+            const walasExists = await prisma.guru.findFirst({
+                where: {
+                    id: parseInt(walas_id),
+                    deleted_at: null
+                }
+            });
+
+            if (!walasExists) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Guru (walas) tidak ditemukan"
+                });
+            }
+
+            // 1 guru hanya boleh jadi walas 1 kelas per tahun ajaran
+            const sudahWalas = await prisma.kelas.findFirst({
+                where: {
+                    walas_id: parseInt(walas_id),
+                    tahun_ajaran_id: parseInt(tahun_ajaran_id),
+                    deleted_at: null
+                }
+            });
+
+            if (sudahWalas) {
+                return res.status(409).json({
+                    success: false,
+                    message: "Guru ini sudah menjadi wali kelas di kelas lain pada tahun ajaran yang sama"
+                });
+            }
+        }
+
         // Cek duplikasi kelas (kelas + jurusan + tahun ajaran yang sama)
         const existingKelas = await prisma.kelas.findFirst({
             where: {
@@ -221,7 +277,8 @@ const createKelas = async (req, res) => {
             data: {
                 kelas: kelas.trim(),
                 jurusan_id: parseInt(jurusan_id),
-                tahun_ajaran_id: parseInt(tahun_ajaran_id)
+                tahun_ajaran_id: parseInt(tahun_ajaran_id),
+                walas_id: walas_id ? parseInt(walas_id) : null
             },
             include: {
                 jurusan: {
@@ -234,6 +291,13 @@ const createKelas = async (req, res) => {
                     select: {
                         id: true,
                         tahun_ajaran: true
+                    }
+                },
+                walas: {
+                    select: {
+                        id: true,
+                        nama: true,
+                        NIP: true
                     }
                 }
             }
@@ -262,7 +326,8 @@ const updateKelas = async (req, res) => {
         const {
             kelas,
             jurusan_id,
-            tahun_ajaran_id
+            tahun_ajaran_id,
+            walas_id
         } = req.body;
 
         // Validasi input wajib
@@ -294,6 +359,14 @@ const updateKelas = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Tahun ajaran ID harus berupa angka"
+            });
+        }
+
+        // Validasi walas_id harus angka (jika diberikan)
+        if (walas_id !== undefined && walas_id !== null && isNaN(parseInt(walas_id))) {
+            return res.status(400).json({
+                success: false,
+                message: "Walas ID harus berupa angka"
             });
         }
 
@@ -342,6 +415,42 @@ const updateKelas = async (req, res) => {
             });
         }
 
+        // Validasi walas exists 
+        if (walas_id) {
+            const walasExists = await prisma.guru.findFirst({
+                where: {
+                    id: parseInt(walas_id),
+                    deleted_at: null
+                }
+            });
+
+            if (!walasExists) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Guru (walas) tidak ditemukan"
+                });
+            }
+
+            // 1 guru hanya boleh jadi walas 1 kelas per tahun ajaran (kecuali kelas ini sendiri)
+            const konflikWalas = await prisma.kelas.findFirst({
+                where: {
+                    walas_id: parseInt(walas_id),
+                    tahun_ajaran_id: parseInt(tahun_ajaran_id),
+                    deleted_at: null,
+                    NOT: {
+                        id: parseInt(id)
+                    }
+                }
+            });
+
+            if (konflikWalas) {
+                return res.status(409).json({
+                    success: false,
+                    message: "Guru ini sudah menjadi wali kelas di kelas lain pada tahun ajaran yang sama"
+                });
+            }
+        }
+
         // Cek duplikasi (kecuali data sendiri)
         const duplicateKelas = await prisma.kelas.findFirst({
             where: {
@@ -371,6 +480,10 @@ const updateKelas = async (req, res) => {
                 kelas: kelas.trim(),
                 jurusan_id: parseInt(jurusan_id),
                 tahun_ajaran_id: parseInt(tahun_ajaran_id),
+
+                walas_id: walas_id === null ? null
+                    : walas_id ? parseInt(walas_id)
+                    : existingKelas.walas_id,
                 updated_at: new Date()
             },
             include: {
@@ -384,6 +497,13 @@ const updateKelas = async (req, res) => {
                     select: {
                         id: true,
                         tahun_ajaran: true
+                    }
+                },
+                walas: {
+                    select: {
+                        id: true,
+                        nama: true,
+                        NIP: true
                     }
                 }
             }
@@ -480,10 +600,119 @@ const deleteKelas = async (req, res) => {
     }
 };
 
+// Assign / hapus walas kelas
+const assignWalas = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { walas_id } = req.body;
+
+        if (walas_id !== null && walas_id !== undefined && isNaN(parseInt(walas_id))) {
+            return res.status(400).json({
+                success: false,
+                message: "Walas ID harus berupa angka"
+            });
+        }
+
+        const kelas = await prisma.kelas.findFirst({
+            where: {
+                id: parseInt(id),
+                deleted_at: null
+            }
+        });
+
+        if (!kelas) {
+            return res.status(404).json({
+                success: false,
+                message: "Kelas tidak ditemukan"
+            });
+        }
+
+        if (walas_id) {
+            const walasExists = await prisma.guru.findFirst({
+                where: {
+                    id: parseInt(walas_id),
+                    deleted_at: null
+                }
+            });
+
+            if (!walasExists) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Guru (walas) tidak ditemukan"
+                });
+            }
+
+            // 1 guru hanya boleh jadi walas 1 kelas per tahun ajaran
+            const konflik = await prisma.kelas.findFirst({
+                where: {
+                    walas_id: parseInt(walas_id),
+                    tahun_ajaran_id: kelas.tahun_ajaran_id,
+                    deleted_at: null,
+                    NOT: {
+                        id: parseInt(id)
+                    }
+                }
+            });
+
+            if (konflik) {
+                return res.status(409).json({
+                    success: false,
+                    message: "Guru ini sudah menjadi wali kelas di kelas lain pada tahun ajaran yang sama"
+                });
+            }
+        }
+
+        const updated = await prisma.kelas.update({
+            where: {
+                id: parseInt(id)
+            },
+            data: {
+                walas_id: walas_id ? parseInt(walas_id) : null
+            },
+            include: {
+                jurusan: {
+                    select: {
+                        id: true,
+                        nama_jurusan: true
+                    }
+                },
+                tahun: {
+                    select: {
+                        id: true,
+                        tahun_ajaran: true
+                    }
+                },
+                walas: {
+                    select: {
+                        id: true,
+                        nama: true,
+                        NIP: true
+                    }
+                }
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: walas_id ? "Berhasil menetapkan wali kelas" : "Berhasil menghapus wali kelas",
+            data: updated
+        });
+
+    } catch (error) {
+        console.error("Error assign walas:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     getAllKelas,
     getKelasById,
     createKelas,
     updateKelas,
-    deleteKelas
+    deleteKelas,
+    assignWalas
 };

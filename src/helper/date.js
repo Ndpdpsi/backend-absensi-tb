@@ -48,15 +48,12 @@ const validateTimeFormat = (time) => {
 };
 
 // Ambil tanggal hari ini sebagai midnight UTC (WIB-safe)
-// Digunakan di controller agar tidak bergantung pada timezone server
 const getTodayWIB = () => {
     const wibStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-    // en-CA → format YYYY-MM-DD, lalu jadikan midnight UTC
     return new Date(`${wibStr}T00:00:00.000Z`);
 };
 
 // Parse string tanggal "YYYY-MM-DD" dari query ke Date midnight UTC (WIB-safe)
-// Menggantikan: new Date(tanggal) lalu setHours(0,0,0,0) yang bergantung timezone server
 const parseTanggal = (tanggalStr) => {
     return new Date(`${tanggalStr}T00:00:00.000Z`);
 };
