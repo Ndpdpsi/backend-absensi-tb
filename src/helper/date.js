@@ -30,14 +30,16 @@ const formatTime = (time) => {
     return new Date(time).toLocaleTimeString('id-ID', {
         hour: '2-digit',
         minute: '2-digit',
+        hour12: false,
         timeZone: 'Asia/Jakarta'
     });
 };
 
 // get hari untuk validasi hari untuk tapin absensi
-const validateHari = (hari) => {
+const validateHari = (date) => {
     const validHari = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
-    return validHari[hari.getDay()];
+    const wibDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    return validHari[wibDate.getDay()];
 };
 
 const validateTimeFormat = (time) => {
@@ -45,10 +47,26 @@ const validateTimeFormat = (time) => {
     return timeRegex.test(time);
 };
 
+// Ambil tanggal hari ini sebagai midnight UTC (WIB-safe)
+// Digunakan di controller agar tidak bergantung pada timezone server
+const getTodayWIB = () => {
+    const wibStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    // en-CA → format YYYY-MM-DD, lalu jadikan midnight UTC
+    return new Date(`${wibStr}T00:00:00.000Z`);
+};
+
+// Parse string tanggal "YYYY-MM-DD" dari query ke Date midnight UTC (WIB-safe)
+// Menggantikan: new Date(tanggal) lalu setHours(0,0,0,0) yang bergantung timezone server
+const parseTanggal = (tanggalStr) => {
+    return new Date(`${tanggalStr}T00:00:00.000Z`);
+};
+
 module.exports = {
     formatDateTime,
     formatDate,
     formatTime,
     validateHari,
-    validateTimeFormat
+    validateTimeFormat,
+    getTodayWIB,
+    parseTanggal,
 };
